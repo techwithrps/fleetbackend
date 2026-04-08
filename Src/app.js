@@ -3,20 +3,29 @@ const path = require("path");
 const cors = require("cors");
 const { connectDB } = require("./config/dbconfig");
 
-require("dotenv").config({ path: path.join(__dirname, "../env") });
+require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
 const app = express();
 
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(",")
+  : [
+    "http://localhost:3000",
+    "https://elogisol-d7em.vercel.app",
+    "http://10.0.2.2:4000",
+    "https://transplus.vercel.app",
+    "https://elogisolvin.vercel.app",
+  ];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://elogisol-d7em.vercel.app",
-      "http://10.0.2.2:4000",
-      "https://transplus.vercel.app",
-      "https://elogisolvin.vercel.app",
-      "https://transplus.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -78,6 +87,11 @@ app.use("/api", tireAttachmentRoutes);
 app.use("/api", jobOrderCloseRoutes);
 app.use("/api", jobOrderRoutes);
 app.use("/api", alertRoutes);
+
+// Health check route for Render
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "healthy", message: "Fleet Backend is running" });
+});
 
 // Add route not found handler
 app.use((req, res, next) => {
