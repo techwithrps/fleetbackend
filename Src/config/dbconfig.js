@@ -1,13 +1,20 @@
 const sql = require("mssql");
 const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "../../.env") });
+require("dotenv").config({ path: path.join(__dirname, "../../.env"), override: true });
+
+const clean = (value) => (typeof value === "string" ? value.trim() : value);
+const server =
+  clean(process.env.SERVER) ||
+  clean(process.env.DB_HOST) ||
+  clean(process.env.SERVER1);
+const port = Number(clean(process.env.DB_PORT)) || 1433;
 
 const config = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  server: process.env.SERVER,
-
-  database: process.env.DB_NAME,
+  user: clean(process.env.DB_USER),
+  password: clean(process.env.DB_PASSWORD),
+  server,
+  port,
+  database: clean(process.env.DB_NAME),
   options: {
     encrypt: true,
     trustServerCertificate: true,
@@ -30,7 +37,11 @@ pool.on("error", (err) => {
 const connectDB = async () => {
   try {
     await pool.connect();
-    console.log("✅ Connected to SQL Server -", process.env.DB_NAME);
+    console.log(
+      "✅ Connected to SQL Server -",
+      clean(process.env.DB_NAME),
+      `(${server}:${port})`
+    );
 
     // Verify database connection with test query
     const result = await pool.request().query("SELECT 1");
@@ -42,6 +53,9 @@ const connectDB = async () => {
       message: err.message,
       code: err.code,
       state: err.state,
+      server,
+      port,
+      database: clean(process.env.DB_NAME),
     });
     process.exit(1); // Exit if database connection fails
   }
