@@ -46,6 +46,20 @@ class TireAttachmentModel {
 
   static async attach(data) {
     try {
+      const activeCheck = await pool
+        .request()
+        .input("tire_id", sql.Numeric(18, 0), data.tire_id)
+        .query(`
+          SELECT TOP 1 TIRE_ATTACH_ID
+          FROM TIRE_ATTACHMENT_HISTORY
+          WHERE TIRE_ID = @tire_id
+            AND ISNULL(ATTACH_STATUS, 'ATTACHED') <> 'DETACHED'
+        `);
+
+      if (activeCheck.recordset.length > 0) {
+        throw new Error("This tire is already attached. Detach it first.");
+      }
+
       const nextId = await this.getNextId();
       await pool
         .request()
