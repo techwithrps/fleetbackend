@@ -61,6 +61,9 @@ class EquipmentController {
       });
     } catch (error) {
       console.error("Create equipment controller error:", error);
+      if (error.message === "Vehicle number already exists.") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
       res.status(500).json({ success: false, error: "Failed to create equipment." });
     }
   }
@@ -99,6 +102,9 @@ class EquipmentController {
       res.json({ success: true, message: "Equipment updated successfully" });
     } catch (error) {
       console.error("Update equipment controller error:", error);
+      if (error.message === "Vehicle number already exists.") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
       res.status(500).json({ success: false, error: "Failed to update equipment." });
     }
   }

@@ -46,6 +46,39 @@ class TireAttachmentModel {
 
   static async attach(data) {
     try {
+      const targetPositionCheckRequest = pool
+        .request()
+        .input("position_id", sql.Numeric(18, 0), data.position_id)
+        .input("attach_for", sql.VarChar(20), data.attach_for);
+
+      let targetCondition = "";
+      if (String(data.attach_for).toUpperCase() === "VEHICLE") {
+        targetPositionCheckRequest.input(
+          "equipment_id",
+          sql.Numeric(18, 0),
+          data.equipment_id
+        );
+        targetCondition = "EQUIPMENT_ID = @equipment_id";
+      } else {
+        targetPositionCheckRequest.input("bed_id", sql.Numeric(18, 0), data.bed_id);
+        targetCondition = "BED_ID = @bed_id";
+      }
+
+      const targetPositionCheck = await targetPositionCheckRequest.query(`
+        SELECT TOP 1 TIRE_ATTACH_ID
+        FROM TIRE_ATTACHMENT_HISTORY
+        WHERE ATTACH_FOR = @attach_for
+          AND ${targetCondition}
+          AND POSITION_ID = @position_id
+          AND ISNULL(ATTACH_STATUS, 'ATTACHED') <> 'DETACHED'
+      `);
+
+      if (targetPositionCheck.recordset.length > 0) {
+        throw new Error(
+          "Selected position is already occupied for this target. Detach first."
+        );
+      }
+
       const activeCheck = await pool
         .request()
         .input("tire_id", sql.Numeric(18, 0), data.tire_id)

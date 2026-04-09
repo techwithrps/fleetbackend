@@ -46,6 +46,22 @@ class BedAttachmentModel {
 
   static async attach(data) {
     try {
+      const equipmentCheck = await pool
+        .request()
+        .input("equipment_id", sql.Numeric(18, 0), data.equipment_id)
+        .query(`
+          SELECT TOP 1 BED_ATTACH_ID
+          FROM BED_ATTACHMENT_HISTORY
+          WHERE EQUIPMENT_ID = @equipment_id
+            AND ISNULL(ATTACH_STATUS, 'ATTACHED') <> 'DETACHED'
+        `);
+
+      if (equipmentCheck.recordset.length > 0) {
+        throw new Error(
+          "This vehicle already has an attached bed. Detach it first."
+        );
+      }
+
       const activeCheck = await pool
         .request()
         .input("bed_id", sql.Numeric(18, 0), data.bed_id)

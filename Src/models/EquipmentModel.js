@@ -55,9 +55,40 @@ class EquipmentModel {
     }
   }
 
+  static async existsByEquipmentNo(equipmentNo, excludeEquipmentId = null) {
+    try {
+      const request = pool
+        .request()
+        .input("equipment_no", sql.VarChar(50), equipmentNo);
+
+      let excludeClause = "";
+      if (excludeEquipmentId) {
+        request.input("exclude_id", sql.Numeric(18, 0), excludeEquipmentId);
+        excludeClause = "AND EQUIPMENT_ID <> @exclude_id";
+      }
+
+      const result = await request.query(`
+        SELECT TOP 1 EQUIPMENT_ID
+        FROM FLEET_EQUIPMENT_MASTER
+        WHERE UPPER(LTRIM(RTRIM(EQUIPMENT_NO))) = UPPER(LTRIM(RTRIM(@equipment_no)))
+        ${excludeClause}
+      `);
+
+      return result.recordset.length > 0;
+    } catch (error) {
+      console.error("Check duplicate equipment number error:", error);
+      throw error;
+    }
+  }
+
   // Create new equipment
   static async create(data) {
     try {
+      const isDuplicate = await this.existsByEquipmentNo(data.EQUIPMENT_NO);
+      if (isDuplicate) {
+        throw new Error("Vehicle number already exists.");
+      }
+
       const nextId = await this.getNextEquipmentId();
       
       await pool
@@ -134,6 +165,14 @@ class EquipmentModel {
   // Update equipment
   static async update(equipmentId, data) {
     try {
+      const isDuplicate = await this.existsByEquipmentNo(
+        data.EQUIPMENT_NO,
+        equipmentId
+      );
+      if (isDuplicate) {
+        throw new Error("Vehicle number already exists.");
+      }
+
       await pool
         .request()
         .input("equipment_id", sql.Numeric(18, 0), equipmentId)
