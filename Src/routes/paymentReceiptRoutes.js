@@ -30,14 +30,14 @@ router.get("/summary", getPaymentSummary);
 // Get payment receipts by customer ID
 router.get("/customer/:customerId", getPaymentReceiptsByCustomer);
 
-// Get payment receipt by ID
-router.get("/:id", getPaymentReceiptById);
-
 // Get payment receipts by invoice number
 router.get("/invoice/:invoiceNo", getPaymentReceiptsByInvoice);
 
 // Get payment history for a receipt
 router.get("/:receiptId/history", getPaymentHistory);
+
+// Get payment receipt by ID
+router.get("/:id", getPaymentReceiptById);
 
 // Update payment receipt (add payment) - Admin only
 router.put("/:id/payment", adminAuth, updatePayment);

@@ -1,4 +1,8 @@
 const EquipmentModel = require("../models/EquipmentModel");
+const {
+  validateEquipmentPayload,
+  normalizeEquipmentPayload,
+} = require("../utils/indiaValidators");
 
 class EquipmentController {
   // Get all equipment
@@ -38,7 +42,7 @@ class EquipmentController {
   // Create new equipment
   static async createEquipment(req, res) {
     try {
-      const data = { ...req.body };
+      let data = normalizeEquipmentPayload({ ...req.body });
 
       if (req.files) {
         Object.entries(req.files).forEach(([field, files]) => {
@@ -51,6 +55,15 @@ class EquipmentController {
       // Validate required fields
       if (!data.EQUIPMENT_NO) {
         return res.status(400).json({ success: false, error: "Equipment number is required." });
+      }
+
+      const validationErrors = validateEquipmentPayload(data);
+      if (validationErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Validation failed.",
+          details: validationErrors,
+        });
       }
       
       const result = await EquipmentModel.create(data);
@@ -72,7 +85,7 @@ class EquipmentController {
   static async updateEquipment(req, res) {
     try {
       const { id } = req.params;
-      const data = { ...req.body };
+      let data = normalizeEquipmentPayload({ ...req.body });
 
       if (req.files) {
         Object.entries(req.files).forEach(([field, files]) => {
@@ -90,6 +103,15 @@ class EquipmentController {
       // Validate required fields
       if (!data.EQUIPMENT_NO) {
         return res.status(400).json({ success: false, error: "Equipment number is required." });
+      }
+
+      const validationErrors = validateEquipmentPayload(data);
+      if (validationErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Validation failed.",
+          details: validationErrors,
+        });
       }
       
       // Check if equipment exists

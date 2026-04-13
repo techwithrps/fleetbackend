@@ -1,4 +1,8 @@
 const DriverModel = require("../models/DriverModel");
+const {
+  validateDriverPayload,
+  normalizeDriverPayload,
+} = require("../utils/indiaValidators");
 
 class DriverController {
   // Get all drivers
@@ -54,7 +58,7 @@ class DriverController {
   // Create new driver
   static async createDriver(req, res) {
     try {
-      const data = req.body;
+      const data = normalizeDriverPayload(req.body);
       
       // Validate required fields
       if (!data.vendor_id) {
@@ -68,6 +72,15 @@ class DriverController {
       // Validate vendor_id is numeric
       if (isNaN(data.vendor_id)) {
         return res.status(400).json({ success: false, error: "Vendor ID must be a valid number." });
+      }
+
+      const validationErrors = validateDriverPayload(data);
+      if (validationErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Validation failed.",
+          details: validationErrors,
+        });
       }
       
       // Add created_by if available from auth middleware
@@ -101,7 +114,7 @@ class DriverController {
   static async updateDriver(req, res) {
     try {
       const { id } = req.params;
-      const data = req.body;
+      const data = normalizeDriverPayload(req.body);
       
       // Validate driver ID
       if (!id || isNaN(id)) {
@@ -116,6 +129,15 @@ class DriverController {
       // Validate vendor_id if provided
       if (data.vendor_id && isNaN(data.vendor_id)) {
         return res.status(400).json({ success: false, error: "Vendor ID must be a valid number." });
+      }
+
+      const validationErrors = validateDriverPayload(data);
+      if (validationErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Validation failed.",
+          details: validationErrors,
+        });
       }
       
       // Check if driver exists

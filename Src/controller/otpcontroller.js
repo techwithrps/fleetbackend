@@ -3,7 +3,8 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { pool, sql } = require("../config/dbconfig");
 const { saveOtp, getOtp, deleteOtp } = require("../models/otpmodels");
-const transporter = require("../config/Mailer");
+const { getMailer } = require("../config/Mailer");
+const isDev = process.env.NODE_ENV === "development";
 
 // Step 1: Validate password → send OTP
 exports.sendOtpAfterPassword = async (req, res) => {
@@ -32,8 +33,9 @@ exports.sendOtpAfterPassword = async (req, res) => {
   saveOtp(email, otp, expiresAt);
 
   try {
+    const { transporter, from } = await getMailer();
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: from || process.env.EMAIL_USER,
       to: email,
       subject: "Your OTP Code",
       text: `Your OTP is ${otp}. It expires in 5 minutes.`,
@@ -50,32 +52,47 @@ exports.sendOtpAfterPassword = async (req, res) => {
 exports.verifyOtpAndLogin = async (req, res) => {
   const { email, otp } = req.body;
 
-  console.log("Received OTP verification request:", {
-    email,
-    otpLength: otp?.length,
-  });
+  if (isDev) {
+    // eslint-disable-next-line no-console
+    console.log("Received OTP verification request:", {
+      email,
+      otpLength: otp?.length,
+    });
+  }
 
   // Validate input
   if (!email || !otp) {
-    console.log("Missing email or OTP");
+    if (isDev) {
+      // eslint-disable-next-line no-console
+      console.log("Missing email or OTP");
+    }
     return res.status(400).json({ message: "Email and OTP are required" });
   }
 
   const data = getOtp(email);
-  console.log(
-    "OTP data from store:",
-    data ? { hasData: true, expiresAt: new Date(data.expiresAt) } : null
-  );
+  if (isDev) {
+    // eslint-disable-next-line no-console
+    console.log(
+      "OTP data from store:",
+      data ? { hasData: true, expiresAt: new Date(data.expiresAt) } : null
+    );
+  }
 
   if (!data) {
-    console.log("OTP not found for email:", email);
+    if (isDev) {
+      // eslint-disable-next-line no-console
+      console.log("OTP not found for email:", email);
+    }
     return res
       .status(400)
       .json({ message: "OTP not found or expired. Please request a new OTP" });
   }
 
   if (Date.now() > data.expiresAt) {
-    console.log("OTP expired for email:", email);
+    if (isDev) {
+      // eslint-disable-next-line no-console
+      console.log("OTP expired for email:", email);
+    }
     deleteOtp(email);
     return res
       .status(400)
@@ -86,19 +103,28 @@ exports.verifyOtpAndLogin = async (req, res) => {
   const receivedOtp = String(otp).trim();
   const storedOtp = String(data.otp).trim();
 
-  console.log("OTP comparison:", {
-    receivedLength: receivedOtp.length,
-    storedLength: storedOtp.length,
-    match: receivedOtp === storedOtp,
-  });
+  if (isDev) {
+    // eslint-disable-next-line no-console
+    console.log("OTP comparison:", {
+      receivedLength: receivedOtp.length,
+      storedLength: storedOtp.length,
+      match: receivedOtp === storedOtp,
+    });
+  }
 
   if (receivedOtp !== storedOtp) {
-    console.log("Invalid OTP provided");
+    if (isDev) {
+      // eslint-disable-next-line no-console
+      console.log("Invalid OTP provided");
+    }
     return res.status(400).json({ message: "Invalid OTP. Please try again" });
   }
 
   // OTP is valid → issue JWT
-  console.log("OTP verified successfully, deleting from store");
+  if (isDev) {
+    // eslint-disable-next-line no-console
+    console.log("OTP verified successfully, deleting from store");
+  }
   deleteOtp(email);
 
   try {
@@ -108,7 +134,10 @@ exports.verifyOtpAndLogin = async (req, res) => {
       .query("SELECT id, name, email, role FROM users WHERE email = @email");
 
     if (result.recordset.length === 0) {
-      console.log("User not found after OTP verification");
+      if (isDev) {
+        // eslint-disable-next-line no-console
+        console.log("User not found after OTP verification");
+      }
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -119,7 +148,10 @@ exports.verifyOtpAndLogin = async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRATION }
     );
 
-    console.log("Login successful, sending response");
+    if (isDev) {
+      // eslint-disable-next-line no-console
+      console.log("Login successful, sending response");
+    }
     res.json({
       message: "Login successful",
       token,

@@ -44,10 +44,10 @@ const vendorRoutes = require("./routes/vendorRoutes"); // Add this line
 const driverRoutes = require("./routes/driverRoutes");
 const locationRoutes = require("./routes/locationroutes"); // Import location routes
 const equipmentRoutes = require("./routes/equipmentRoutes"); // Import equipment routes
+const fleetEquipmentRoutes = require("./routes/fleetEquipmentRoutes");
 const vehiicleRoutes = require("./routes/vehicleRoutes"); // Import vehicle routes
 const asnRoutes = require("./routes/asnRoutes"); // Import ASN routes
 const paymentReceiptRoutes = require("./routes/paymentReceiptRoutes"); // Import payment receipt routes
-const rateCardRoutes = require("./routes/rateCardRoutes");
 const tireRoutes = require("./routes/tireRoutes");
 const bedRoutes = require("./routes/bedRoutes");
 const bedAttachmentRoutes = require("./routes/bedAttachmentRoutes");
@@ -56,11 +56,13 @@ const tireAttachmentRoutes = require("./routes/tireAttachmentRoutes");
 const jobOrderRoutes = require("./routes/jobOrderRoutes");
 const jobOrderCloseRoutes = require("./routes/jobOrderCloseRoutes");
 const alertRoutes = require("./routes/alertRoutes");
+const emailConfigRoutes = require("./routes/emailConfigRoutes");
+const iamRoutes = require("./routes/iamRoutes");
 // Mount routes with more specific routes first
 app.use("/api/auth", authRoutes);
 app.use("/api/users", UserRoutes);
+app.use("/users", UserRoutes);
 app.use("/api/transport-requests", transportRequestRoutes);
-app.use("/api/rate-cards", rateCardRoutes);
 app.use("/api", transporterRoutes);
 app.use("/api/customers", CustomerMasterRoutes);
 app.use("/api/transactions", transactionRoutes);
@@ -70,6 +72,7 @@ app.use("/api", vendorRoutes); // Add this line
 app.use("/api", driverRoutes);
 app.use("/api/locations", locationRoutes);
 app.use("/api", equipmentRoutes);
+app.use("/api", fleetEquipmentRoutes);
 app.use("/api", vehiicleRoutes);
 app.use("/api", asnRoutes);
 app.use("/api/payment-receipts", paymentReceiptRoutes); // Payment receipts routes
@@ -81,6 +84,8 @@ app.use("/api", tireAttachmentRoutes);
 app.use("/api", jobOrderCloseRoutes);
 app.use("/api", jobOrderRoutes);
 app.use("/api", alertRoutes);
+app.use("/api/email-config", emailConfigRoutes);
+app.use("/api/iam", iamRoutes);
 
 // Health check route for Render
 app.get("/", (req, res) => {

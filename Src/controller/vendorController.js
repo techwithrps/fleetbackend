@@ -1,5 +1,11 @@
 const VendorModel = require("../models/VendorModel");
 const multer = require("multer");
+const {
+  validateVendorPayload,
+  normalizeVendorPayload,
+} = require("../utils/indiaValidators");
+
+const isDev = process.env.NODE_ENV === "development";
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
@@ -28,14 +34,29 @@ class VendorController {
   // Create new vendor - FIXED document processing
   static async createVendor(req, res) {
     try {
-      console.log("Request body:", req.body);
-      console.log("Files received:", req.files?.length || 0);
+      if (isDev) {
+        // eslint-disable-next-line no-console
+        console.log("Request body:", req.body);
+        // eslint-disable-next-line no-console
+        console.log("Files received:", req.files?.length || 0);
+      }
+
+      const payload = normalizeVendorPayload(req.body);
 
       // Validate required fields
-      if (!req.body.vendor_name || req.body.vendor_name.trim() === "") {
+      if (!payload.vendor_name || payload.vendor_name.trim() === "") {
         return res.status(400).json({
           success: false,
           error: "Vendor name is required",
+        });
+      }
+
+      const validationErrors = validateVendorPayload(payload);
+      if (validationErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Validation failed",
+          details: validationErrors,
         });
       }
 
@@ -56,12 +77,15 @@ class VendorController {
         });
       }
 
-      console.log(
-        "Documents to create:",
-        documents.map((d) => ({ index: d.index, name: d.name, type: d.type }))
-      );
+      if (isDev) {
+        // eslint-disable-next-line no-console
+        console.log(
+          "Documents to create:",
+          documents.map((d) => ({ index: d.index, name: d.name, type: d.type }))
+        );
+      }
 
-      const result = await VendorModel.create(req.body, documents);
+      const result = await VendorModel.create(payload, documents);
 
       res.status(201).json({
         success: true,
@@ -99,8 +123,12 @@ class VendorController {
     try {
       const { id } = req.params;
 
-      console.log("Update request body:", req.body);
-      console.log("Update files:", req.files?.length || 0);
+      if (isDev) {
+        // eslint-disable-next-line no-console
+        console.log("Update request body:", req.body);
+        // eslint-disable-next-line no-console
+        console.log("Update files:", req.files?.length || 0);
+      }
 
       if (!id || isNaN(id)) {
         return res.status(400).json({
@@ -109,10 +137,21 @@ class VendorController {
         });
       }
 
-      if (!req.body.vendor_name || req.body.vendor_name.trim() === "") {
+      const payload = normalizeVendorPayload(req.body);
+
+      if (!payload.vendor_name || payload.vendor_name.trim() === "") {
         return res.status(400).json({
           success: false,
           error: "Vendor name is required",
+        });
+      }
+
+      const validationErrors = validateVendorPayload(payload);
+      if (validationErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Validation failed",
+          details: validationErrors,
         });
       }
 
@@ -141,13 +180,17 @@ class VendorController {
         });
       }
 
-      console.log("Updating vendor ID:", id);
-      console.log(
-        "Documents to update:",
-        documents.map((d) => ({ index: d.index, name: d.name, type: d.type }))
-      );
+      if (isDev) {
+        // eslint-disable-next-line no-console
+        console.log("Updating vendor ID:", id);
+        // eslint-disable-next-line no-console
+        console.log(
+          "Documents to update:",
+          documents.map((d) => ({ index: d.index, name: d.name, type: d.type }))
+        );
+      }
 
-      await VendorModel.update(id, req.body, documents);
+      await VendorModel.update(id, payload, documents);
 
       res.json({
         success: true,

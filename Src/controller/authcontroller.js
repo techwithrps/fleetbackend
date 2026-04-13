@@ -1,74 +1,65 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { pool, sql } = require("../config/dbconfig");
+const { getUserIamContext } = require("../services/iamService");
+
+const hasUserSoftDelete = async () => {
+  const result = await pool.request().query(`
+    SELECT CASE
+      WHEN COL_LENGTH('dbo.users', 'is_active') IS NULL THEN 0
+      ELSE 1
+    END AS has_soft_delete
+  `);
+  return !!result.recordset[0]?.has_soft_delete;
+};
 
 exports.signup = async (req, res) => {
-  const { name, email, phone, password, role } = req.body;
+  return res.status(403).json({
+    message: "Public signup is disabled. Please contact your administrator.",
+  });
+};
 
+exports.validate = async (req, res) => {
   try {
-    // Input validation
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({
-        message: "Please provide all required fields",
-      });
-    }
-
-    // Check if user exists
-    const userCheck = await pool
-      .request()
-      .input("email", sql.VarChar, email)
-      .query("SELECT email FROM users WHERE email = @email");
-
-    if (userCheck.recordset.length > 0) {
-      return res.status(409).json({
-        message: "User already exists with this email",
-      });
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Insert user
+    const useSoftDelete = await hasUserSoftDelete();
     const result = await pool
       .request()
-      .input("name", sql.VarChar, name)
-      .input("email", sql.VarChar, email)
-      .input("phone", sql.VarChar, phone || null)
-      .input("password", sql.VarChar, hashedPassword)
-      .input("role", sql.VarChar, role).query(`
-        INSERT INTO users (name, email, phone, password, role)
-        OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.role
-        VALUES (@name, @email, @phone, @password, @role)
+      .input("id", sql.Int, req.user.id)
+      .query(useSoftDelete ? `
+        SELECT id, name, email, role
+        FROM users
+        WHERE id = @id AND is_active = 1
+      ` : `
+        SELECT id, name, email, role
+        FROM users
+        WHERE id = @id
       `);
 
     const user = result.recordset[0];
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "User account is inactive or not found",
+      });
+    }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRATION }
-    );
+    const iamContext = await getUserIamContext(user.id);
 
-    res.status(201).json({
-      message: "User registered successfully",
-      token,
+    return res.status(200).json({
+      success: true,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
+        ...user,
+        tenantId: iamContext?.tenantId || null,
+        terminalIds: iamContext?.terminalIds || [],
+        permissions: iamContext?.permissions || [],
+        iamRoles: iamContext?.roles || [],
       },
     });
   } catch (error) {
-    console.error("Signup error:", error);
-    res.status(500).json({
-      message: "Server error during registration",
+    console.error("Validate session error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error during validation",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
@@ -85,11 +76,17 @@ exports.login = async (req, res) => {
       });
     }
 
+    const useSoftDelete = await hasUserSoftDelete();
+
     // Find user
     const result = await pool
       .request()
       .input("email", sql.VarChar, email)
-      .query("SELECT * FROM users WHERE email = @email");
+      .query(
+        useSoftDelete
+          ? "SELECT * FROM users WHERE email = @email AND is_active = 1"
+          : "SELECT * FROM users WHERE email = @email"
+      );
 
     const user = result.recordset[0];
 
@@ -107,12 +104,17 @@ exports.login = async (req, res) => {
       });
     }
 
+    const iamContext = await getUserIamContext(user.id);
+
     // Generate JWT token
     const token = jwt.sign(
       {
         id: user.id,
         email: user.email,
         role: user.role,
+        tenantId: iamContext?.tenantId || user.tenant_id || null,
+        terminalIds: iamContext?.terminalIds || [],
+        permissions: iamContext?.permissions || [],
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRATION }
@@ -126,6 +128,10 @@ exports.login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        tenantId: iamContext?.tenantId || user.tenant_id || null,
+        terminalIds: iamContext?.terminalIds || [],
+        permissions: iamContext?.permissions || [],
+        iamRoles: iamContext?.roles || [],
       },
     });
   } catch (error) {
