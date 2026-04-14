@@ -191,10 +191,16 @@ const normalizeEquipmentPayload = (data) => ({
   EQUIPMENT_NO: compactVehicleNo(getValue(data, "EQUIPMENT_NO", "equipment_no")),
   VIN_NO: toUpperTrim(getValue(data, "VIN_NO", "vin_no")),
   INSURANCE_NO: normalize(getValue(data, "INSURANCE_NO", "insurance_no")),
-  ENG_NO: toUpperTrim(data.ENG_NO),
-  ENG_TYPE: toUpperTrim(data.ENG_TYPE),
-  RTO: toUpperTrim(data.RTO),
-  MANUFACTURER: toUpperTrim(data.MANUFACTURER),
+  ENG_NO: toUpperTrim(getValue(data, "ENG_NO", "eng_no")),
+  ENG_TYPE: toUpperTrim(getValue(data, "ENG_TYPE", "eng_type")),
+  RTO: toUpperTrim(getValue(data, "RTO", "rto")),
+  MANUFACTURER: toUpperTrim(getValue(data, "MANUFACTURER", "manufacturer")),
+  IMAGE: normalize(getValue(data, "IMAGE", "image")),
+  FITNESS_DOC: normalize(getValue(data, "FITNESS_DOC", "fitness_doc")),
+  RC_DOC: normalize(getValue(data, "RC_DOC", "rc_doc")),
+  INSURANCE_DOC: normalize(getValue(data, "INSURANCE_DOC", "insurance_doc")),
+  PERMIT_A: normalize(getValue(data, "PERMIT_A", "permit_a")),
+  PERMIT_B: normalize(getValue(data, "PERMIT_B", "permit_b")),
 });
 
 module.exports = {

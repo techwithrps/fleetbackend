@@ -23,4 +23,6 @@ router.put("/equipment/:id", auth, uploadFields, EquipmentController.updateEquip
 
 router.delete("/equipment/:id", auth, EquipmentController.deleteEquipment);
 
+router.get("/equipment/:id/document/:docType", auth, EquipmentController.getDocument);
+
 module.exports = router;

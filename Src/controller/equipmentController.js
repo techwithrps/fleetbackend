@@ -5,6 +5,36 @@ const {
 } = require("../utils/indiaValidators");
 
 class EquipmentController {
+  static coerceDocToBufferOrNull(value) {
+    if (!value) return null;
+    if (Buffer.isBuffer(value)) return value;
+
+    if (typeof value !== "string") return null;
+
+    const s = value.trim();
+    if (!s) return null;
+
+    // Existing "view current doc" URLs should not be sent back as payload for binary columns.
+    if (/^api\/equipment\/\d+\/document\//i.test(s)) return null;
+    if (/^https?:\/\//i.test(s)) return null;
+    if (/^uploads\//i.test(s)) return null;
+
+    // Handle data URLs: data:application/pdf;base64,xxxx
+    const dataUrlMatch = s.match(/^data:.*;base64,(.+)$/i);
+    const base64Payload = dataUrlMatch ? dataUrlMatch[1] : s;
+
+    // Guardrail: Only treat as base64 if it looks like base64 and is reasonably long.
+    if (!/^[a-z0-9+/=\r\n]+$/i.test(base64Payload) || base64Payload.length < 32) {
+      return null;
+    }
+
+    try {
+      return Buffer.from(base64Payload, "base64");
+    } catch {
+      return null;
+    }
+  }
+
   // Get all vehicles
   static async getAllEquipment(req, res) {
     try {
@@ -46,11 +76,19 @@ class EquipmentController {
 
       if (req.files) {
         Object.entries(req.files).forEach(([field, files]) => {
-          if (files && files[0]) {
-            data[field] = `uploads/vehicles/${files[0].filename}`;
+          if (files && files[0] && files[0].buffer) {
+            // Map file field name to uppercase to match model expectation
+            const upperField = field.toUpperCase();
+            data[upperField] = files[0].buffer;
           }
         });
       }
+      
+      // Ensure specific document/image fields are Buffers or null to prevent mssql conversion errors
+      const docFields = ["IMAGE", "FITNESS_DOC", "RC_DOC", "INSURANCE_DOC", "PERMIT_A", "PERMIT_B"];
+      docFields.forEach((field) => {
+        data[field] = EquipmentController.coerceDocToBufferOrNull(data[field]);
+      });
       
       // Validate required fields
       if (!data.EQUIPMENT_NO) {
@@ -89,11 +127,19 @@ class EquipmentController {
 
       if (req.files) {
         Object.entries(req.files).forEach(([field, files]) => {
-          if (files && files[0]) {
-            data[field] = `uploads/vehicles/${files[0].filename}`;
+          if (files && files[0] && files[0].buffer) {
+            // Map file field name to uppercase to match model expectation
+            const upperField = field.toUpperCase();
+            data[upperField] = files[0].buffer;
           }
         });
       }
+      
+      // Ensure specific document/image fields are Buffers or null to prevent mssql conversion errors
+      const docFields = ["IMAGE", "FITNESS_DOC", "RC_DOC", "INSURANCE_DOC", "PERMIT_A", "PERMIT_B"];
+      docFields.forEach((field) => {
+        data[field] = EquipmentController.coerceDocToBufferOrNull(data[field]);
+      });
       
       // Validate vehicle ID
       if (!id || isNaN(id)) {
@@ -152,6 +198,81 @@ class EquipmentController {
     } catch (error) {
       console.error("Delete vehicle controller error:", error);
       res.status(500).json({ success: false, error: error.message || "Failed to delete vehicle." });
+    }
+  }
+
+  // Get raw document
+  static async getDocument(req, res) {
+    try {
+      const { id, docType } = req.params;
+      
+      const buffer = await EquipmentModel.getDocumentRaw(id, docType.toUpperCase());
+      if (!buffer) {
+        return res.status(404).send("Document not found");
+      }
+
+      const detectMimeType = (buf) => {
+        if (!Buffer.isBuffer(buf) || buf.length < 4) return "application/octet-stream";
+
+        // PDF: 25 50 44 46 => %PDF
+        if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+          return "application/pdf";
+        }
+        // PNG
+        if (
+          buf.length >= 8 &&
+          buf[0] === 0x89 &&
+          buf[1] === 0x50 &&
+          buf[2] === 0x4e &&
+          buf[3] === 0x47 &&
+          buf[4] === 0x0d &&
+          buf[5] === 0x0a &&
+          buf[6] === 0x1a &&
+          buf[7] === 0x0a
+        ) {
+          return "image/png";
+        }
+        // JPEG
+        if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+          return "image/jpeg";
+        }
+        // GIF
+        if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) {
+          return "image/gif";
+        }
+        // WEBP: "RIFF....WEBP"
+        if (
+          buf.length >= 12 &&
+          buf[0] === 0x52 &&
+          buf[1] === 0x49 &&
+          buf[2] === 0x46 &&
+          buf[3] === 0x46 &&
+          buf[8] === 0x57 &&
+          buf[9] === 0x45 &&
+          buf[10] === 0x42 &&
+          buf[11] === 0x50
+        ) {
+          return "image/webp";
+        }
+
+        return "application/octet-stream";
+      };
+
+      let mimeType = detectMimeType(buffer);
+      const upperDocType = String(docType || "").toUpperCase();
+      const isDocField = ["FITNESS_DOC", "RC_DOC", "INSURANCE_DOC", "PERMIT_A", "PERMIT_B"].includes(upperDocType);
+
+      // Fallback: these fields are usually PDFs. If magic-byte detection fails, serve as PDF.
+      if (isDocField && mimeType === "application/octet-stream") {
+        mimeType = "application/pdf";
+      }
+
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Disposition", "inline");
+      res.send(buffer);
+    } catch (error) {
+      console.error("Get document controller error:", error);
+      res.status(500).send("Error fetching document");
     }
   }
 }
