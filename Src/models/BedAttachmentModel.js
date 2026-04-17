@@ -1,7 +1,7 @@
 const { pool, sql } = require("../config/dbconfig");
 
 class BedAttachmentModel {
-  static async getHistory({ equipment_id, bed_id }) {
+  static async getHistory({ equipment_id, bed_id }, terminalIds = null) {
     try {
       const request = pool.request();
       if (equipment_id) {
@@ -11,12 +11,17 @@ class BedAttachmentModel {
         request.input("bed_id", sql.Numeric(18, 0), bed_id);
       }
 
-      const where = [
-        equipment_id ? "EQUIPMENT_ID = @equipment_id" : null,
-        bed_id ? "BED_ID = @bed_id" : null,
-      ]
-        .filter(Boolean)
-        .join(" AND ");
+      const whereArgs = [];
+      if (equipment_id) whereArgs.push("EQUIPMENT_ID = @equipment_id");
+      if (bed_id) whereArgs.push("BED_ID = @bed_id");
+
+      if (terminalIds) {
+        const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+        request.input("terminal_ids", sql.VarChar, terminalIdsStr);
+        whereArgs.push("(@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))");
+      }
+
+      const where = whereArgs.join(" AND ");
 
       const result = await request.query(`
         SELECT *
@@ -80,6 +85,7 @@ class BedAttachmentModel {
       await pool
         .request()
         .input("bed_attach_id", sql.Numeric(18, 0), nextId)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("equipment_id", sql.Numeric(18, 0), data.equipment_id)
         .input("bed_id", sql.Numeric(18, 0), data.bed_id)
         .input("attach_date", sql.DateTime, new Date())
@@ -90,6 +96,7 @@ class BedAttachmentModel {
         .query(`
           INSERT INTO BED_ATTACHMENT_HISTORY (
             BED_ATTACH_ID,
+            TERMINAL_ID,
             EQUIPMENT_ID,
             BED_ID,
             ATTACH_DATE,
@@ -100,6 +107,7 @@ class BedAttachmentModel {
           )
           VALUES (
             @bed_attach_id,
+            @terminal_id,
             @equipment_id,
             @bed_id,
             @attach_date,

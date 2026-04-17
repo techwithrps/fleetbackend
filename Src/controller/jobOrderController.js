@@ -4,7 +4,8 @@ class JobOrderController {
   static async getAllJobOrders(req, res) {
     try {
       const { status } = req.query;
-      const orders = await JobOrderModel.getAll(status);
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const orders = await JobOrderModel.getAll(status, terminalId);
       res.json({ success: true, data: orders });
     } catch (error) {
       console.error("Get all job orders controller error:", error);
@@ -22,7 +23,8 @@ class JobOrderController {
           .status(400)
           .json({ success: false, error: "Valid job order ID is required." });
       }
-      const order = await JobOrderModel.getById(id);
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const order = await JobOrderModel.getById(id, terminalId);
       if (!order) {
         return res
           .status(404)
@@ -45,6 +47,16 @@ class JobOrderController {
           .status(400)
           .json({ success: false, error: "JO type is required." });
       }
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      // Auto-tag terminal_id from selected terminal if not provided or for customer
+      if (!data.terminal_id || !isAdmin) {
+        data.terminal_id = req.user?.terminalId !== 'ALL' ? req.user?.terminalId : data.terminal_id;
+      }
+      
+      if (!isAdmin && !data.terminal_id) {
+        return res.status(400).json({ success: false, error: "Terminal context missing." });
+      }
       if (req.user?.id) {
         data.created_by = String(req.user.id);
       }
@@ -66,6 +78,17 @@ class JobOrderController {
         return res
           .status(400)
           .json({ success: false, error: "Valid job order ID is required." });
+      }
+      const userTerminalIds = req.user?.terminalIds || [];
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        if (!data.terminal_id) {
+          return res.status(400).json({ success: false, error: "Terminal selection is required." });
+        }
+        if (!userTerminalIds.includes(Number(data.terminal_id))) {
+          return res.status(403).json({ success: false, error: "You cannot manage job orders for an unassigned terminal." });
+        }
       }
       if (req.user?.id) {
         data.updated_by = String(req.user.id);

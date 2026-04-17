@@ -116,18 +116,28 @@ class EquipmentModel {
     return false;
   }
 
-  static async getAll() {
+  static async getAll(terminalId) {
     const schema = await this.detectSchema();
+    const isAdminAll = String(terminalId) === 'ALL';
+    
     if (schema === "fleet") {
-      const result = await pool.request().query(`
+      const request = pool.request();
+      let query = `
         SELECT 
           e.*,
           v.VENDOR_NAME,
           v.VENDOR_CODE
         FROM FLEET_EQUIPMENT_MASTER e
         LEFT JOIN VENDOR_MASTER v ON e.VENDER_ID = v.VENDOR_ID
-        ORDER BY e.EQUIPMENT_NO
-      `);
+      `;
+      
+      if (!isAdminAll && terminalId) {
+        query += ` WHERE e.TERMINAL_ID = @terminalId`;
+        request.input("terminalId", sql.Numeric(18, 0), terminalId);
+      }
+      
+      query += ` ORDER BY e.EQUIPMENT_NO`;
+      const result = await request.query(query);
       return result.recordset.map((row) => {
         const mapDoc = (docBuffer, docName) => docBuffer ? `api/equipment/${row.EQUIPMENT_ID}/document/${docName}` : null;
         return {
@@ -171,14 +181,15 @@ class EquipmentModel {
     return [];
   }
 
-  static async getById(equipmentId) {
+  static async getById(equipmentId, terminalId) {
     const schema = await this.detectSchema();
+    const isAdminAll = String(terminalId) === 'ALL';
 
     if (schema === "fleet") {
-      const result = await pool
-        .request()
-        .input("equipment_id", sql.Numeric(18, 0), equipmentId)
-        .query(`
+      const request = pool.request()
+        .input("equipment_id", sql.Numeric(18, 0), equipmentId);
+      
+      let query = `
           SELECT 
             e.*,
             v.VENDOR_NAME,
@@ -186,7 +197,14 @@ class EquipmentModel {
           FROM FLEET_EQUIPMENT_MASTER e
           LEFT JOIN VENDOR_MASTER v ON e.VENDER_ID = v.VENDOR_ID
           WHERE e.EQUIPMENT_ID = @equipment_id
-        `);
+      `;
+
+      if (!isAdminAll && terminalId) {
+        query += ` AND e.TERMINAL_ID = @terminalId`;
+        request.input("terminalId", sql.Numeric(18, 0), terminalId);
+      }
+
+      const result = await request.query(query);
       const row = result.recordset[0];
       if (!row) return null;
       const mapDoc = (docBuffer, docName) => docBuffer ? `api/equipment/${row.EQUIPMENT_ID}/document/${docName}` : null;

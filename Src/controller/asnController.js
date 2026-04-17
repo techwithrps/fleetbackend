@@ -4,7 +4,8 @@ const ASNController = {
   // Get all ASN records
   async getAll(req, res) {
     try {
-      const records = await ASNMaster.getAll();
+      const terminalId = req.user.terminalId;
+      const records = await ASNMaster.getAll(terminalId);
       res.status(200).json({
         success: true,
         count: records.length,
@@ -24,7 +25,8 @@ const ASNController = {
   async getById(req, res) {
     try {
       const { id } = req.params;
-      const record = await ASNMaster.getById(parseInt(id));
+      const terminalId = req.user.terminalId;
+      const record = await ASNMaster.getById(parseInt(id), terminalId);
 
       if (!record) {
         return res.status(404).json({
@@ -86,6 +88,7 @@ const ASNController = {
         invoiceAmount,
         invoiceDate,
         shipmentNo,
+        terminalId: req.user.terminalId, // Add terminal ID
       });
 
       res.status(201).json({
@@ -173,7 +176,7 @@ const ASNController = {
       const createdRecords = await Promise.all(
         validatedRecords.map(async (record) => {
           try {
-            return await ASNMaster.create(record);
+            return await ASNMaster.create({ ...record, terminalId: req.user.terminalId });
           } catch (error) {
             return {
               error: true,

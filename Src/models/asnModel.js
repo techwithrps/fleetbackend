@@ -2,12 +2,19 @@ const { pool, sql } = require("../config/dbconfig");
 
 const ASNMaster = {
   // Get all records
-  async getAll() {
+  async getAll(terminalId) {
     try {
       const request = pool.request();
-      const result = await request.query(
-        "SELECT * FROM ASN_MASTER ORDER BY CreatedAt DESC"
-      );
+      const isAdminAll = String(terminalId) === 'ALL';
+      let query = "SELECT * FROM ASN_MASTER";
+      
+      if (!isAdminAll && terminalId) {
+        query += " WHERE TERMINAL_ID = @terminalId";
+        request.input("terminalId", sql.Numeric(18, 0), terminalId);
+      }
+      
+      query += " ORDER BY CreatedAt DESC";
+      const result = await request.query(query);
       return result.recordset;
     } catch (error) {
       throw new Error(`Error fetching ASN records: ${error.message}`);
@@ -15,12 +22,19 @@ const ASNMaster = {
   },
 
   // Get record by ID
-  async getById(id) {
+  async getById(id, terminalId) {
     try {
       const request = pool.request();
-      const result = await request
-        .input("id", sql.Int, id)
-        .query("SELECT * FROM ASN_MASTER WHERE ID = @id");
+      const isAdminAll = String(terminalId) === 'ALL';
+      let query = "SELECT * FROM ASN_MASTER WHERE ID = @id";
+      
+      request.input("id", sql.Int, id);
+      if (!isAdminAll && terminalId) {
+        query += " AND TERMINAL_ID = @terminalId";
+        request.input("terminalId", sql.Numeric(18, 0), terminalId);
+      }
+      
+      const result = await request.query(query);
       return result.recordset[0];
     } catch (error) {
       throw new Error(`Error fetching ASN record: ${error.message}`);
@@ -47,15 +61,17 @@ const ASNMaster = {
         .input("InvoiceNo", sql.VarChar(50), data.invoiceNo)
         .input("InvoiceAmount", sql.Decimal(18, 2), data.invoiceAmount || 0)
         .input("InvoiceDate", sql.Date, data.invoiceDate)
-        .input("ShipmentNo", sql.VarChar(50), data.shipmentNo).query(`
+        .input("ShipmentNo", sql.VarChar(50), data.shipmentNo)
+        .input("TerminalId", sql.Numeric(18, 0), data.terminalId) // Terminal context
+        .query(`
           INSERT INTO ASN_MASTER (
             VIN, ModelCode, ModelName, DealerCode, OriginCode, DestinationCode,
-            OriginTerminal, DestinationTerminal, InvoiceNo, InvoiceAmount, InvoiceDate, ShipmentNo
+            OriginTerminal, DestinationTerminal, InvoiceNo, InvoiceAmount, InvoiceDate, ShipmentNo, TERMINAL_ID
           )
           OUTPUT INSERTED.ID
           VALUES (
             @VIN, @ModelCode, @ModelName, @DealerCode, @OriginCode, @DestinationCode,
-            @OriginTerminal, @DestinationTerminal, @InvoiceNo, @InvoiceAmount, @InvoiceDate, @ShipmentNo
+            @OriginTerminal, @DestinationTerminal, @InvoiceNo, @InvoiceAmount, @InvoiceDate, @ShipmentNo, @TerminalId
           )
         `);
       return result.recordset[0];

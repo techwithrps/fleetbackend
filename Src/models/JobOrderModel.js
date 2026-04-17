@@ -1,16 +1,28 @@
 const { pool, sql } = require("../config/dbconfig");
 
 class JobOrderModel {
-  static async getAll(status) {
+  static async getAll(status, terminalIds = null) {
     try {
       const request = pool.request();
       if (status) {
         request.input("status", sql.VarChar(20), status);
       }
+      
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      if (terminalIds) {
+        request.input("terminal_ids", sql.VarChar, terminalIdsStr);
+      }
+      
+      const whereConditions = [];
+      if (status) whereConditions.push("STATUS = @status");
+      if (terminalIds) whereConditions.push("(@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))");
+      
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
+
       const result = await request.query(`
         SELECT *
         FROM JOB_ORDER
-        ${status ? "WHERE STATUS = @status" : ""}
+        ${whereClause}
         ORDER BY JO_DATE DESC, JO_ID DESC
       `);
       return result.recordset;
@@ -20,15 +32,18 @@ class JobOrderModel {
     }
   }
 
-  static async getById(jobId) {
+  static async getById(jobId, terminalIds = null) {
     try {
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
       const result = await pool
         .request()
         .input("jo_id", sql.Numeric(18, 0), jobId)
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT *
           FROM JOB_ORDER
           WHERE JO_ID = @jo_id
+          AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         `);
       return result.recordset[0] || null;
     } catch (error) {
@@ -59,6 +74,7 @@ class JobOrderModel {
         .input("jo_id", sql.Numeric(18, 0), nextId)
         .input("jo_no", sql.VarChar(50), joNo)
         .input("jo_date", sql.Date, data.jo_date ? new Date(data.jo_date) : new Date())
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("jo_type", sql.VarChar(50), data.jo_type || null)
         .input("jo_for", sql.VarChar(20), data.jo_for || null)
         .input(
@@ -94,6 +110,7 @@ class JobOrderModel {
         .query(`
           INSERT INTO JOB_ORDER (
             JO_ID,
+            TERMINAL_ID,
             JO_NO,
             JO_DATE,
             JO_TYPE,
@@ -119,6 +136,7 @@ class JobOrderModel {
           )
           VALUES (
             @jo_id,
+            @terminal_id,
             @jo_no,
             @jo_date,
             @jo_type,
@@ -157,6 +175,7 @@ class JobOrderModel {
         .input("jo_id", sql.Numeric(18, 0), jobId)
         .input("jo_no", sql.VarChar(50), data.jo_no || null)
         .input("jo_date", sql.Date, data.jo_date ? new Date(data.jo_date) : null)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("jo_type", sql.VarChar(50), data.jo_type || null)
         .input("jo_for", sql.VarChar(20), data.jo_for || null)
         .input(
@@ -192,6 +211,7 @@ class JobOrderModel {
         .query(`
           UPDATE JOB_ORDER
           SET
+            TERMINAL_ID = @terminal_id,
             JO_NO = COALESCE(@jo_no, JO_NO),
             JO_DATE = COALESCE(@jo_date, JO_DATE),
             JO_TYPE = @jo_type,

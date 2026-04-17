@@ -1,11 +1,15 @@
 const { pool, sql } = require("../config/dbconfig");
 
 class BedModel {
-  static async getAll() {
+  static async getAll(terminalIds = null) {
     try {
-      const result = await pool.request().query(`
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const result = await pool.request()
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
+        .query(`
         SELECT *
         FROM BED_MASTER
+        WHERE (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         ORDER BY BED_NO
       `);
       return result.recordset;
@@ -15,15 +19,18 @@ class BedModel {
     }
   }
 
-  static async getById(bedId) {
+  static async getById(bedId, terminalIds = null) {
     try {
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
       const result = await pool
         .request()
         .input("bed_id", sql.Numeric(18, 0), bedId)
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT *
           FROM BED_MASTER
           WHERE BED_ID = @bed_id
+          AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         `);
       return result.recordset[0] || null;
     } catch (error) {
@@ -51,6 +58,7 @@ class BedModel {
       await pool
         .request()
         .input("bed_id", sql.Numeric(18, 0), nextId)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("bed_no", sql.VarChar(50), data.bed_no)
         .input("bed_type", sql.VarChar(20), data.bed_type || null)
         .input("bed_size", sql.VarChar(20), data.bed_size || null)
@@ -67,6 +75,7 @@ class BedModel {
         .query(`
           INSERT INTO BED_MASTER (
             BED_ID,
+            TERMINAL_ID,
             BED_NO,
             BED_TYPE,
             BED_SIZE,
@@ -79,6 +88,7 @@ class BedModel {
           )
           VALUES (
             @bed_id,
+            @terminal_id,
             @bed_no,
             @bed_type,
             @bed_size,
@@ -102,6 +112,7 @@ class BedModel {
       await pool
         .request()
         .input("bed_id", sql.Numeric(18, 0), bedId)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("bed_no", sql.VarChar(50), data.bed_no)
         .input("bed_type", sql.VarChar(20), data.bed_type || null)
         .input("bed_size", sql.VarChar(20), data.bed_size || null)
@@ -118,6 +129,7 @@ class BedModel {
         .query(`
           UPDATE BED_MASTER
           SET
+            TERMINAL_ID = @terminal_id,
             BED_NO = @bed_no,
             BED_TYPE = @bed_type,
             BED_SIZE = @bed_size,

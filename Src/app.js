@@ -57,7 +57,8 @@ const jobOrderRoutes = require("./routes/jobOrderRoutes");
 const jobOrderCloseRoutes = require("./routes/jobOrderCloseRoutes");
 const alertRoutes = require("./routes/alertRoutes");
 const emailConfigRoutes = require("./routes/emailConfigRoutes");
-const iamRoutes = require("./routes/iamRoutes");
+const accessRoutes = require("./routes/accessRoutes");
+
 // Mount routes with more specific routes first
 app.use("/api/auth", authRoutes);
 app.use("/api/users", UserRoutes);
@@ -85,7 +86,8 @@ app.use("/api", jobOrderCloseRoutes);
 app.use("/api", jobOrderRoutes);
 app.use("/api", alertRoutes);
 app.use("/api/email-config", emailConfigRoutes);
-app.use("/api/iam", iamRoutes);
+app.use("/api/access", accessRoutes);
+
 
 // Health check route for Render
 app.get("/", (req, res) => {

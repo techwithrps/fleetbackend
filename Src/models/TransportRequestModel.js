@@ -65,7 +65,8 @@ class TransportRequest {
         .input("no_of_vehicles", sql.Int, no_of_vehicles || 1)
         .input("status", sql.NVarChar, status)
         .input("vehicle_status", sql.NVarChar, vehicle_status || "Empty")
-        .input("SHIPA_NO", sql.NVarChar, SHIPA_NO) // Added new field
+        .input("SHIPA_NO", sql.NVarChar, SHIPA_NO)
+        .input("location_id", sql.Numeric(18, 0), requestData.terminalId) // Added terminalId
         .query(`
         INSERT INTO transport_requests (
           customer_id, vehicle_type, vehicle_size, consignee, consigner,
@@ -74,7 +75,7 @@ class TransportRequest {
           commodity, cargo_type, cargo_weight, service_type,
           service_prices, expected_pickup_date, expected_pickup_time,
           expected_delivery_date, expected_delivery_time,
-          requested_price, status, no_of_vehicles, vehicle_status, SHIPA_NO, created_at
+          requested_price, status, no_of_vehicles, vehicle_status, SHIPA_NO, TERMINAL_ID, created_at
         )
         OUTPUT INSERTED.*
         VALUES (
@@ -84,7 +85,7 @@ class TransportRequest {
           @commodity, @cargo_type, @cargo_weight, @service_type,
           @service_prices, @expected_pickup_date, @expected_pickup_time,
           @expected_delivery_date, @expected_delivery_time,
-          @requested_price, @status, @no_of_vehicles, @vehicle_status, @SHIPA_NO, GETDATE()
+          @requested_price, @status, @no_of_vehicles, @vehicle_status, @SHIPA_NO, @location_id, GETDATE()
         )
         `);
 
@@ -132,20 +133,25 @@ class TransportRequest {
     }
   }
 
-  static async getAllRequests(page, limit) {
+  static async getAllRequests(page, limit, terminalId) {
     try {
       const offset = (page - 1) * limit;
+      const isAdminAll = String(terminalId) === 'ALL';
 
-      const countResult = await pool
-        .request()
-        .query(`SELECT COUNT(*) AS total FROM transport_requests`);
-
+      const countRequest = pool.request();
+      let countQuery = `SELECT COUNT(*) AS total FROM transport_requests`;
+      if (!isAdminAll) {
+        countQuery += ` WHERE TERMINAL_ID = @terminalId`;
+        countRequest.input("terminalId", sql.Numeric(18, 0), terminalId);
+      }
+      const countResult = await countRequest.query(countQuery);
       const totalRequests = countResult.recordset[0].total;
 
-      const result = await pool
-        .request()
+      const resultRequest = pool.request()
         .input("offset", sql.Int, offset)
-        .input("limit", sql.Int, limit).query(`
+        .input("limit", sql.Int, limit);
+
+      let query = `
           SELECT 
             tr.*,
             CONVERT(varchar, tr.created_at, 120) as request_created_at,
@@ -159,9 +165,16 @@ class TransportRequest {
             u.created_at as user_created_at
           FROM transport_requests tr
           LEFT JOIN users u ON tr.customer_id = u.id
-          ORDER BY tr.created_at DESC
-          OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
-        `);
+      `;
+
+      if (!isAdminAll) {
+        query += ` WHERE tr.TERMINAL_ID = @terminalId`;
+        resultRequest.input("terminalId", sql.Numeric(18, 0), terminalId);
+      }
+
+      query += ` ORDER BY tr.created_at DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
+      
+      const result = await resultRequest.query(query);
       return { requests: result.recordset, totalRequests };
     } catch (error) {
       throw error;
@@ -289,7 +302,7 @@ class TransportRequest {
       throw error;
     }
   }
-  static async getRequestsByFilters(filters) {
+  static async getRequestsByFilters(filters, terminalId) {
     try {
       const {
         shipa_no,
@@ -300,6 +313,8 @@ class TransportRequest {
         to_date,
         consigner,
       } = filters;
+
+      const isAdminAll = String(terminalId) === 'ALL';
 
       let query = `
         SELECT DISTINCT tr.*,
@@ -319,6 +334,11 @@ class TransportRequest {
 
       const whereClauses = [];
       const request = pool.request();
+
+      if (!isAdminAll) {
+        whereClauses.push(`tr.TERMINAL_ID = @terminalId`);
+        request.input("terminalId", sql.Numeric(18, 0), terminalId);
+      }
 
       if (shipa_no) {
         whereClauses.push(`tr.SHIPA_NO LIKE @shipa_no`);

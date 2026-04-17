@@ -1,11 +1,15 @@
 const { pool, sql } = require("../config/dbconfig");
 
 class TireModel {
-  static async getAll() {
+  static async getAll(terminalIds = null) {
     try {
-      const result = await pool.request().query(`
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const result = await pool.request()
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
+        .query(`
         SELECT *
         FROM TIRE_MASTER
+        WHERE (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         ORDER BY TIRE_NO
       `);
 
@@ -16,15 +20,18 @@ class TireModel {
     }
   }
 
-  static async getById(tireId) {
+  static async getById(tireId, terminalIds = null) {
     try {
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
       const result = await pool
         .request()
         .input("tire_id", sql.Numeric(18, 0), tireId)
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT *
           FROM TIRE_MASTER
           WHERE TIRE_ID = @tire_id
+          AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         `);
 
       return result.recordset[0] || null;
@@ -60,6 +67,7 @@ class TireModel {
 
       await request
         .input("tire_id", sql.Numeric(18, 0), nextId)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("tire_no", sql.VarChar(50), data.tire_no)
         .input("company", sql.VarChar(50), data.company || null)
         .input(
@@ -87,6 +95,7 @@ class TireModel {
         .query(`
           INSERT INTO TIRE_MASTER (
             TIRE_ID,
+            TERMINAL_ID,
             TIRE_NO,
             COMPANY,
             PURCHASE_DATE,
@@ -102,6 +111,7 @@ class TireModel {
           )
           VALUES (
             @tire_id,
+            @terminal_id,
             @tire_no,
             @company,
             @purchase_date,
@@ -132,6 +142,7 @@ class TireModel {
       await pool
         .request()
         .input("tire_id", sql.Numeric(18, 0), tireId)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("tire_no", sql.VarChar(50), data.tire_no)
         .input("company", sql.VarChar(50), data.company || null)
         .input(
@@ -159,6 +170,7 @@ class TireModel {
         .query(`
           UPDATE TIRE_MASTER
           SET
+            TERMINAL_ID = @terminal_id,
             TIRE_NO = @tire_no,
             COMPANY = @company,
             PURCHASE_DATE = @purchase_date,
@@ -198,15 +210,18 @@ class TireModel {
     }
   }
 
-  static async search(searchText) {
+  static async search(searchText, terminalIds = null) {
     try {
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
       const result = await pool
         .request()
         .input("search", sql.VarChar(100), `%${searchText}%`)
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT *
           FROM TIRE_MASTER
-          WHERE TIRE_NO LIKE @search OR COMPANY LIKE @search
+          WHERE (TIRE_NO LIKE @search OR COMPANY LIKE @search)
+          AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
           ORDER BY TIRE_NO
         `);
 

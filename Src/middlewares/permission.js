@@ -1,5 +1,9 @@
 module.exports = (requiredPermission) => {
   return (req, res, next) => {
+    if (req.user?.role?.toLowerCase() === 'admin') {
+      return next();
+    }
+
     const permissions = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
     if (!requiredPermission) {
       return next();

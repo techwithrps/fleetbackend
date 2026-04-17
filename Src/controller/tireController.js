@@ -3,7 +3,8 @@ const TireModel = require("../models/TireModel");
 class TireController {
   static async getAllTires(req, res) {
     try {
-      const tires = await TireModel.getAll();
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const tires = await TireModel.getAll(terminalId);
       res.json({ success: true, data: tires });
     } catch (error) {
       console.error("Get all tires controller error:", error);
@@ -24,7 +25,8 @@ class TireController {
           .json({ success: false, error: "Valid tire ID is required." });
       }
 
-      const tire = await TireModel.getById(id);
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const tire = await TireModel.getById(id, terminalId);
       if (!tire) {
         return res
           .status(404)
@@ -48,6 +50,17 @@ class TireController {
           success: false,
           error: "Tire Number is required.",
         });
+      }
+
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      // Auto-tag terminal_id from selected terminal if not provided or for customer
+      if (!data.terminal_id || !isAdmin) {
+        data.terminal_id = req.user?.terminalId !== 'ALL' ? req.user?.terminalId : data.terminal_id;
+      }
+      
+      if (!isAdmin && !data.terminal_id) {
+        return res.status(400).json({ success: false, error: "Terminal context missing." });
       }
 
       if (req.user?.id) {
@@ -86,7 +99,20 @@ class TireController {
           .json({ success: false, error: "Tire Number is required." });
       }
 
-      const existingTire = await TireModel.getById(id);
+      const userTerminalIds = req.user?.terminalIds || [];
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        if (!data.terminal_id) {
+          return res.status(400).json({ success: false, error: "Terminal selection is required." });
+        }
+        if (!userTerminalIds.includes(Number(data.terminal_id))) {
+          return res.status(403).json({ success: false, error: "You cannot manage tires for an unassigned terminal." });
+        }
+      }
+
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
+      const existingTire = await TireModel.getById(id, terminalIds);
       if (!existingTire) {
         return res
           .status(404)
@@ -117,11 +143,20 @@ class TireController {
           .json({ success: false, error: "Valid tire ID is required." });
       }
 
-      const existingTire = await TireModel.getById(id);
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const existingTire = await TireModel.getById(id, terminalId);
       if (!existingTire) {
         return res
           .status(404)
           .json({ success: false, error: "Tire not found." });
+      }
+
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        // Customer can only disable data
+        await TireModel.update(id, { ...existingTire, status: 'Inactive' });
+        return res.json({ success: true, message: "Tire disabled successfully (Status set to Inactive)." });
       }
 
       await TireModel.delete(id);
@@ -144,7 +179,8 @@ class TireController {
           .json({ success: false, error: "Search text is required." });
       }
 
-      const tires = await TireModel.search(search);
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const tires = await TireModel.search(search, terminalId);
       res.json({ success: true, data: tires });
     } catch (error) {
       console.error("Search tires controller error:", error);

@@ -4,10 +4,11 @@ class BedAttachmentController {
   static async getHistory(req, res) {
     try {
       const { equipment_id, bed_id } = req.query;
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
       const history = await BedAttachmentModel.getHistory({
         equipment_id,
         bed_id,
-      });
+      }, terminalIds);
       res.json({ success: true, data: history });
     } catch (error) {
       console.error("Get bed attachment history controller error:", error);
@@ -26,6 +27,19 @@ class BedAttachmentController {
           error: "Equipment ID and Bed ID are required.",
         });
       }
+      
+      const userTerminalIds = req.user?.terminalIds || [];
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        if (!data.terminal_id) {
+          return res.status(400).json({ success: false, error: "Terminal selection is required." });
+        }
+        if (!userTerminalIds.includes(Number(data.terminal_id))) {
+          return res.status(403).json({ success: false, error: "You cannot manage bed attachments for an unassigned terminal." });
+        }
+      }
+
       if (req.user?.id) {
         data.created_by = String(req.user.id);
       }

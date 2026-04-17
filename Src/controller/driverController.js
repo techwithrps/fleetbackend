@@ -5,10 +5,10 @@ const {
 } = require("../utils/indiaValidators");
 
 class DriverController {
-  // Get all drivers
   static async getAllDrivers(req, res) {
     try {
-      const drivers = await DriverModel.getAll();
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const drivers = await DriverModel.getAll(terminalId);
       res.json({ success: true, data: drivers });
     } catch (error) {
       console.error("Get all drivers controller error:", error);
@@ -21,12 +21,12 @@ class DriverController {
     try {
       const { vendorId } = req.params;
       
-      // Validate vendorId
       if (!vendorId || isNaN(vendorId)) {
         return res.status(400).json({ success: false, error: "Valid vendor ID is required." });
       }
       
-      const drivers = await DriverModel.getByVendorId(vendorId);
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const drivers = await DriverModel.getByVendorId(vendorId, terminalId);
       res.json({ success: true, data: drivers });
     } catch (error) {
       console.error("Get drivers by vendor ID controller error:", error);
@@ -39,12 +39,12 @@ class DriverController {
     try {
       const { id } = req.params;
       
-      // Validate driver ID
       if (!id || isNaN(id)) {
         return res.status(400).json({ success: false, error: "Valid driver ID is required." });
       }
       
-      const driver = await DriverModel.getById(id);
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const driver = await DriverModel.getById(id, terminalId);
       if (!driver) {
         return res.status(404).json({ success: false, message: "Driver not found." });
       }
@@ -69,9 +69,19 @@ class DriverController {
         return res.status(400).json({ success: false, error: "Driver name is required." });
       }
       
-      // Validate vendor_id is numeric
       if (isNaN(data.vendor_id)) {
         return res.status(400).json({ success: false, error: "Vendor ID must be a valid number." });
+      }
+
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      // Auto-tag terminal_id from selected terminal if not provided or for customer
+      if (!data.terminal_id || !isAdmin) {
+        data.terminal_id = req.user?.terminalId !== 'ALL' ? req.user?.terminalId : data.terminal_id;
+      }
+      
+      if (!isAdmin && !data.terminal_id) {
+        return res.status(400).json({ success: false, error: "Terminal context missing." });
       }
 
       const validationErrors = validateDriverPayload(data);
@@ -126,9 +136,20 @@ class DriverController {
         return res.status(400).json({ success: false, error: "Driver name is required." });
       }
       
-      // Validate vendor_id if provided
       if (data.vendor_id && isNaN(data.vendor_id)) {
         return res.status(400).json({ success: false, error: "Vendor ID must be a valid number." });
+      }
+
+      const userTerminalIds = req.user?.terminalIds || [];
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        if (!data.terminal_id) {
+          return res.status(400).json({ success: false, error: "Terminal selection is required." });
+        }
+        if (!userTerminalIds.includes(Number(data.terminal_id))) {
+          return res.status(403).json({ success: false, error: "You cannot manage drivers for an unassigned terminal." });
+        }
       }
 
       const validationErrors = validateDriverPayload(data);
@@ -140,8 +161,9 @@ class DriverController {
         });
       }
       
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
       // Check if driver exists
-      const existingDriver = await DriverModel.getById(id);
+      const existingDriver = await DriverModel.getById(id, terminalIds);
       if (!existingDriver) {
         return res.status(404).json({ success: false, error: "Driver not found." });
       }
@@ -168,15 +190,23 @@ class DriverController {
     try {
       const { id } = req.params;
       
-      // Validate driver ID
       if (!id || isNaN(id)) {
         return res.status(400).json({ success: false, error: "Valid driver ID is required." });
       }
       
+      const userTerminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
       // Check if driver exists
-      const existingDriver = await DriverModel.getById(id);
+      const existingDriver = await DriverModel.getById(id, userTerminalId);
       if (!existingDriver) {
         return res.status(404).json({ success: false, error: "Driver not found." });
+      }
+
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        // Customer can only disable data
+        await DriverModel.update(id, { ...existingDriver, status: 'Inactive' });
+        return res.json({ success: true, message: "Driver disabled successfully (Status set to Inactive)." });
       }
       
       await DriverModel.delete(id);
@@ -202,7 +232,8 @@ class DriverController {
   // Get vendors for dropdown
   static async getVendors(req, res) {
     try {
-      const vendors = await DriverModel.getVendors();
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
+      const vendors = await DriverModel.getVendors(terminalIds);
       res.json({ success: true, data: vendors });
     } catch (error) {
       console.error("Get vendors controller error:", error);

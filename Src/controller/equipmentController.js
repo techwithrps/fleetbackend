@@ -38,7 +38,8 @@ class EquipmentController {
   // Get all vehicles
   static async getAllEquipment(req, res) {
     try {
-      const equipment = await EquipmentModel.getAll();
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const equipment = await EquipmentModel.getAll(terminalId);
       res.json({ success: true, data: equipment });
     } catch (error) {
       console.error("Get all vehicle controller error:", error);
@@ -56,7 +57,8 @@ class EquipmentController {
         return res.status(400).json({ success: false, error: "Valid vehicle ID is required." });
       }
       
-      const equipment = await EquipmentModel.getById(id);
+      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
+      const equipment = await EquipmentModel.getById(id, terminalId);
       
       if (!equipment) {
         return res.status(404).json({ success: false, error: "Vehicle not found." });
@@ -93,6 +95,13 @@ class EquipmentController {
       // Validate required fields
       if (!data.EQUIPMENT_NO) {
         return res.status(400).json({ success: false, error: "Vehicle number is required." });
+      }
+
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      // Auto-tag terminal_id from selected terminal if not provided or for customer
+      if (!data.TERMINAL_ID || !isAdmin) {
+        data.TERMINAL_ID = req.user?.terminalId !== 'ALL' ? req.user?.terminalId : data.TERMINAL_ID;
       }
 
       const validationErrors = validateEquipmentPayload(data);
@@ -187,10 +196,17 @@ class EquipmentController {
         return res.status(400).json({ success: false, error: "Valid vehicle ID is required." });
       }
       
-      // Check if vehicle exists
       const existingEquipment = await EquipmentModel.getById(id);
       if (!existingEquipment) {
         return res.status(404).json({ success: false, error: "Vehicle not found." });
+      }
+
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        // Customer can only disable data
+        await EquipmentModel.update(id, { ...existingEquipment, STATUS: 'I' });
+        return res.json({ success: true, message: "Vehicle disabled successfully (Status set to Inactive)" });
       }
       
       await EquipmentModel.delete(id);

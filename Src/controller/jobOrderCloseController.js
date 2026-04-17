@@ -3,7 +3,8 @@ const JobOrderCloseModel = require("../models/JobOrderCloseModel");
 class JobOrderCloseController {
   static async getAllJobOrderClose(req, res) {
     try {
-      const rows = await JobOrderCloseModel.getAll();
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
+      const rows = await JobOrderCloseModel.getAll(terminalIds);
       res.json({ success: true, data: rows });
     } catch (error) {
       console.error("Get job order close controller error:", error);
@@ -21,7 +22,8 @@ class JobOrderCloseController {
           .status(400)
           .json({ success: false, error: "Valid close ID is required." });
       }
-      const row = await JobOrderCloseModel.getById(id);
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
+      const row = await JobOrderCloseModel.getById(id, terminalIds);
       if (!row) {
         return res
           .status(404)
@@ -43,6 +45,17 @@ class JobOrderCloseController {
         return res
           .status(400)
           .json({ success: false, error: "JO ID is required." });
+      }
+      const userTerminalIds = req.user?.terminalIds || [];
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        if (!data.terminal_id) {
+          return res.status(400).json({ success: false, error: "Terminal selection is required." });
+        }
+        if (!userTerminalIds.includes(Number(data.terminal_id))) {
+          return res.status(403).json({ success: false, error: "You cannot manage job order closes for an unassigned terminal." });
+        }
       }
       if (req.user?.id) {
         data.created_by = String(req.user.id);

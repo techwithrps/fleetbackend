@@ -1,10 +1,10 @@
 const FleetEquipmentModel = require("../models/FleetEquipmentModel");
 
 class FleetEquipmentController {
-  // Get all fleet equipment
   static async getAllFleetEquipment(req, res) {
     try {
-      const equipment = await FleetEquipmentModel.getAll();
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
+      const equipment = await FleetEquipmentModel.getAll(terminalIds);
       res.json({ success: true, data: equipment });
     } catch (error) {
       console.error("Get all fleet equipment controller error:", error);
@@ -28,7 +28,8 @@ class FleetEquipmentController {
         });
       }
 
-      const equipment = await FleetEquipmentModel.getById(id);
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
+      const equipment = await FleetEquipmentModel.getById(id, terminalIds);
       if (!equipment) {
         return res.status(404).json({ 
           success: false, 
@@ -52,12 +53,23 @@ class FleetEquipmentController {
     try {
       const data = req.body;
       
-      // Basic validation
       if (!data.equipment_name || data.equipment_name.trim() === '') {
         return res.status(400).json({ 
           success: false, 
           error: "Equipment name is required." 
         });
+      }
+
+      const userTerminalIds = req.user?.terminalIds || [];
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        if (!data.terminal_id) {
+          return res.status(400).json({ success: false, error: "Terminal selection is required." });
+        }
+        if (!userTerminalIds.includes(Number(data.terminal_id))) {
+          return res.status(403).json({ success: false, error: "You cannot manage fleet equipment for an unassigned terminal." });
+        }
       }
 
       // Add created_by from authenticated user if available
@@ -101,8 +113,21 @@ class FleetEquipmentController {
         });
       }
 
+      const userTerminalIds = req.user?.terminalIds || [];
+      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      
+      if (!isAdmin) {
+        if (!data.terminal_id) {
+          return res.status(400).json({ success: false, error: "Terminal selection is required." });
+        }
+        if (!userTerminalIds.includes(Number(data.terminal_id))) {
+          return res.status(403).json({ success: false, error: "You cannot manage fleet equipment for an unassigned terminal." });
+        }
+      }
+
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
       // Check if equipment exists
-      const existingEquipment = await FleetEquipmentModel.getById(id);
+      const existingEquipment = await FleetEquipmentModel.getById(id, terminalIds);
       if (!existingEquipment) {
         return res.status(404).json({ 
           success: false, 
@@ -137,8 +162,9 @@ class FleetEquipmentController {
         });
       }
 
+      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
       // Check if equipment exists
-      const existingEquipment = await FleetEquipmentModel.getById(id);
+      const existingEquipment = await FleetEquipmentModel.getById(id, terminalIds);
       if (!existingEquipment) {
         return res.status(404).json({ 
           success: false, 

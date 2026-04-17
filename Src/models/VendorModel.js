@@ -31,10 +31,12 @@ class VendorModel {
     };
   }
 
-  // Get all vendors with consistent document field mapping
-  static async getAll() {
+  static async getAll(terminalIds = null) {
     try {
-      const result = await pool.request().query(`
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const result = await pool.request()
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
+        .query(`
         SELECT 
           VENDOR_ID, TERMINAL_ID, VENDOR_CODE, VENDOR_NAME, ADDRESS, CITY, PIN_CODE, STATE_CODE, COUNTRY,
           EMAIL_ID1, EMAIL_ID2, CONTACT_NO, MOBILE_NO, FAX, PAYMENT_TERMS, PAN, TAN,
@@ -62,12 +64,14 @@ class VendorModel {
     }
   }
 
-  // Get vendor by ID
-  static async getById(vendorId) {
+  static async getById(vendorId, terminalIds = null) {
     try {
-      const result = await pool
-        .request()
-        .input("vendor_id", sql.Numeric(10, 0), vendorId).query(`
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const request = pool.request()
+        .input("vendor_id", sql.Numeric(10, 0), vendorId)
+        .input("terminal_ids", sql.VarChar, terminalIdsStr);
+        
+      const result = await request.query(`
           SELECT 
             VENDOR_ID, TERMINAL_ID, VENDOR_CODE, VENDOR_NAME, ADDRESS, CITY, PIN_CODE, STATE_CODE, COUNTRY,
             EMAIL_ID1, EMAIL_ID2, CONTACT_NO, MOBILE_NO, FAX, PAYMENT_TERMS, PAN, TAN,

@@ -1,16 +1,19 @@
 const { pool, sql } = require("../config/dbconfig");
 
 class DriverModel {
-  // Get all drivers with vendor information
-  static async getAll() {
+  static async getAll(terminalIds = null) {
     try {
-      const result = await pool.request().query(`
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const result = await pool.request()
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
+        .query(`
         SELECT 
           d.*,
           v.VENDOR_NAME,
           v.VENDOR_CODE
         FROM DRIVER_MASTER d
         LEFT JOIN VENDOR_MASTER v ON d.VENDOR_ID = v.VENDOR_ID
+        WHERE (@terminal_ids IS NULL OR d.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         ORDER BY d.DRIVER_NAME
       `);
       return result.recordset;
@@ -20,12 +23,13 @@ class DriverModel {
     }
   }
 
-  // Get driver by ID with vendor information
-  static async getById(driverId) {
+  static async getById(driverId, terminalIds = null) {
     try {
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
       const result = await pool
         .request()
         .input("driver_id", sql.Numeric(18, 0), driverId)
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT 
             d.*,
@@ -34,6 +38,7 @@ class DriverModel {
           FROM DRIVER_MASTER d
           LEFT JOIN VENDOR_MASTER v ON d.VENDOR_ID = v.VENDOR_ID
           WHERE d.DRIVER_ID = @driver_id
+          AND (@terminal_ids IS NULL OR d.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         `);
 
       return result.recordset[0] || null;
@@ -288,12 +293,13 @@ class DriverModel {
     }
   }
 
-  // Get drivers by vendor ID
-  static async getByVendorId(vendorId) {
+  static async getByVendorId(vendorId, terminalIds = null) {
     try {
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
       const result = await pool
         .request()
         .input("vendor_id", sql.Numeric(10, 0), vendorId)
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT 
             d.*,
@@ -302,6 +308,7 @@ class DriverModel {
           FROM DRIVER_MASTER d
           LEFT JOIN VENDOR_MASTER v ON d.VENDOR_ID = v.VENDOR_ID
           WHERE d.VENDOR_ID = @vendor_id
+          AND (@terminal_ids IS NULL OR d.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
           ORDER BY d.DRIVER_NAME
         `);
 
@@ -312,13 +319,16 @@ class DriverModel {
     }
   }
 
-  // Get available vendors for dropdown
-  static async getVendors() {
+  static async getVendors(terminalIds = null) {
     try {
-      const result = await pool.request().query(`
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const result = await pool.request()
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
+        .query(`
         SELECT VENDOR_ID, VENDOR_NAME, VENDOR_CODE
         FROM VENDOR_MASTER
-        WHERE ACTIVE_FLAG = 'Y' OR ACTIVE_FLAG IS NULL
+        WHERE (ACTIVE_FLAG = 'Y' OR ACTIVE_FLAG IS NULL)
+        AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         ORDER BY VENDOR_NAME
       `);
       return result.recordset;

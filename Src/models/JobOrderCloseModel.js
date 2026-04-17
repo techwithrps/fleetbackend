@@ -1,11 +1,15 @@
 const { pool, sql } = require("../config/dbconfig");
 
 class JobOrderCloseModel {
-  static async getAll() {
+  static async getAll(terminalIds = null) {
     try {
-      const result = await pool.request().query(`
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const result = await pool.request()
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
+        .query(`
         SELECT *
         FROM JOB_ORDER_CLOSE
+        WHERE (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         ORDER BY CREATED_ON DESC
       `);
       return result.recordset;
@@ -15,15 +19,18 @@ class JobOrderCloseModel {
     }
   }
 
-  static async getById(closeId) {
+  static async getById(closeId, terminalIds = null) {
     try {
+      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
       const result = await pool
         .request()
         .input("jo_close_id", sql.Numeric(18, 0), closeId)
+        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT *
           FROM JOB_ORDER_CLOSE
           WHERE JO_CLOSE_ID = @jo_close_id
+          AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
         `);
       return result.recordset[0] || null;
     } catch (error) {
@@ -56,6 +63,7 @@ class JobOrderCloseModel {
 
       await request
         .input("jo_close_id", sql.Numeric(18, 0), nextId)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("jo_id", sql.Numeric(18, 0), data.jo_id)
         .input("jo_no", sql.VarChar(50), data.jo_no || null)
         .input(
@@ -74,6 +82,7 @@ class JobOrderCloseModel {
         .query(`
           INSERT INTO JOB_ORDER_CLOSE (
             JO_CLOSE_ID,
+            TERMINAL_ID,
             JO_ID,
             JO_NO,
             TRIP_CLOSE_DATE,
@@ -88,6 +97,7 @@ class JobOrderCloseModel {
           )
           VALUES (
             @jo_close_id,
+            @terminal_id,
             @jo_id,
             @jo_no,
             @trip_close_date,
