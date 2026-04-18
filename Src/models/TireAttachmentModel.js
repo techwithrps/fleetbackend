@@ -1,7 +1,7 @@
 const { pool, sql } = require("../config/dbconfig");
 
 class TireAttachmentModel {
-  static async getHistory({ equipment_id, bed_id }) {
+  static async getHistory({ equipment_id, bed_id }, terminalIds = null) {
     try {
       const request = pool.request();
       if (equipment_id) {
@@ -11,18 +11,26 @@ class TireAttachmentModel {
         request.input("bed_id", sql.Numeric(18, 0), bed_id);
       }
 
-      const where = [
-        equipment_id ? "EQUIPMENT_ID = @equipment_id" : null,
-        bed_id ? "BED_ID = @bed_id" : null,
-      ]
-        .filter(Boolean)
-        .join(" AND ");
+      const whereArgs = [];
+      if (equipment_id) whereArgs.push("T.EQUIPMENT_ID = @equipment_id");
+      if (bed_id) whereArgs.push("T.BED_ID = @bed_id");
+
+      if (terminalIds) {
+        const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+        request.input("terminal_ids", sql.VarChar, terminalIdsStr);
+        whereArgs.push("(@terminal_ids IS NULL OR E.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')) OR B.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')) OR TM.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))");
+      }
+
+      const where = whereArgs.join(" AND ");
 
       const result = await request.query(`
-        SELECT *
-        FROM TIRE_ATTACHMENT_HISTORY
+        SELECT T.*
+        FROM TIRE_ATTACHMENT_HISTORY T
+        LEFT JOIN FLEET_EQUIPMENT_MASTER E ON T.EQUIPMENT_ID = E.EQUIPMENT_ID
+        LEFT JOIN BED_MASTER B ON T.BED_ID = B.BED_ID
+        LEFT JOIN TIRE_MASTER TM ON T.TIRE_ID = TM.TIRE_ID
         ${where ? `WHERE ${where}` : ""}
-        ORDER BY ATTACH_DATE DESC
+        ORDER BY T.ATTACH_DATE DESC
       `);
       return result.recordset;
     } catch (error) {

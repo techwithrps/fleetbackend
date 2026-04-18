@@ -94,41 +94,41 @@ exports.createRequest = async (req, res) => {
     }
 
 
-      const result = await pool
-        .request()
-        .input("customer_id", sql.Int, req.user.id)
-        .input("vehicle_type", sql.NVarChar, vehicle_type)
-        .input("vehicle_size", sql.NVarChar, vehicle_size)
-        .input("consignee", sql.NVarChar, consignee)
-        .input("consigner", sql.NVarChar, consigner)
-        .input("containers_20ft", sql.Int, containers_20ft || 0)
-        .input("containers_40ft", sql.Int, containers_40ft || 0)
-        .input("total_containers", sql.Int, total_containers || 0)
-        .input("pickup_location", sql.NVarChar, pickup_location)
-        .input("stuffing_location", sql.NVarChar, stuffing_location)
-        .input("delivery_location", sql.NVarChar, delivery_location)
-        .input("commodity", sql.NVarChar, commodity)
-        .input("cargo_type", sql.NVarChar, cargo_type)
-        .input("cargo_weight", sql.Decimal(10, 2), cargo_weight)
-        .input(
-          "service_type",
-          sql.NVarChar(sql.MAX),
-          JSON.stringify(parsedServiceType)
-        )
-        .input(
-          "service_prices",
-          sql.NVarChar(sql.MAX),
-          JSON.stringify(parsedServicePrices)
-        )
-        .input("expected_pickup_date", sql.Date, pickupDate)
-        .input("expected_delivery_date", sql.Date, deliveryDate)
-        .input("requested_price", sql.Decimal(10, 2), requested_price)
-        .input("no_of_vehicles", sql.Int, no_of_vehicles || 1)
-        .input("status", sql.NVarChar, status || "Pending")
-        .input("vehicle_status", sql.NVarChar, vehicle_status || "Empty")
-        .input("SHIPA_NO", sql.NVarChar, SHIPA_NO)
-        .input("location_id", sql.Numeric(18, 0), req.user.terminalId) // Terminal context
-        .query(`
+    const result = await pool
+      .request()
+      .input("customer_id", sql.Int, req.user.id)
+      .input("vehicle_type", sql.NVarChar, vehicle_type)
+      .input("vehicle_size", sql.NVarChar, vehicle_size)
+      .input("consignee", sql.NVarChar, consignee)
+      .input("consigner", sql.NVarChar, consigner)
+      .input("containers_20ft", sql.Int, containers_20ft || 0)
+      .input("containers_40ft", sql.Int, containers_40ft || 0)
+      .input("total_containers", sql.Int, total_containers || 0)
+      .input("pickup_location", sql.NVarChar, pickup_location)
+      .input("stuffing_location", sql.NVarChar, stuffing_location)
+      .input("delivery_location", sql.NVarChar, delivery_location)
+      .input("commodity", sql.NVarChar, commodity)
+      .input("cargo_type", sql.NVarChar, cargo_type)
+      .input("cargo_weight", sql.Decimal(10, 2), cargo_weight)
+      .input(
+        "service_type",
+        sql.NVarChar(sql.MAX),
+        JSON.stringify(parsedServiceType)
+      )
+      .input(
+        "service_prices",
+        sql.NVarChar(sql.MAX),
+        JSON.stringify(parsedServicePrices)
+      )
+      .input("expected_pickup_date", sql.Date, pickupDate)
+      .input("expected_delivery_date", sql.Date, deliveryDate)
+      .input("requested_price", sql.Decimal(10, 2), requested_price)
+      .input("no_of_vehicles", sql.Int, no_of_vehicles || 1)
+      .input("status", sql.NVarChar, status || "Pending")
+      .input("vehicle_status", sql.NVarChar, vehicle_status || "Empty")
+      .input("SHIPA_NO", sql.NVarChar, SHIPA_NO)
+      .input("location_id", sql.Numeric(18, 0), req.user.terminalId) // Terminal context
+      .query(`
         INSERT INTO transport_requests (
           customer_id, vehicle_type, vehicle_size, consignee, consigner,
           containers_20ft, containers_40ft, total_containers,

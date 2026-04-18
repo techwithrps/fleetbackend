@@ -2,8 +2,24 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { pool, sql } = require("../config/dbconfig");
 
-const getUserAccessContext = async (userId) => {
+const getUserAccessContext = async (userId, role) => {
   try {
+    if (role && role.toLowerCase() === 'admin') {
+      const locResult = await pool.request().query("SELECT CAST(LOCATION_ID AS NUMERIC(18,0)) as id FROM dbo.LOCATION_MASTER WHERE LOCATION_ID IS NOT NULL");
+      const pageResult = await pool.request().query("SELECT PAGE_ID, PAGE_NAME FROM dbo.PAGE_MASTER");
+      
+      const terminalIds = locResult.recordset.map(r => Number(r.id));
+      const pageIds = pageResult.recordset.map(r => Number(r.PAGE_ID));
+      const pageNames = pageResult.recordset.map(r => r.PAGE_NAME);
+      const permissions = {};
+      
+      pageResult.recordset.forEach(r => {
+        permissions[r.PAGE_NAME] = { can_view: 1, can_create: 1, can_edit: 1 };
+      });
+      
+      return { terminalIds, pageIds, pageNames, permissions };
+    }
+
     const result = await pool.request()
       .input("user_id", sql.Int, userId)
       .query(`
@@ -86,7 +102,7 @@ exports.validate = async (req, res) => {
       });
     }
 
-    const accessContext = await getUserAccessContext(user.id);
+    const accessContext = await getUserAccessContext(user.id, user.role);
 
     return res.status(200).json({
       success: true,
@@ -147,7 +163,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    const accessContext = await getUserAccessContext(user.id);
+    const accessContext = await getUserAccessContext(user.id, user.role);
 
     // Generate JWT token
     const token = jwt.sign(

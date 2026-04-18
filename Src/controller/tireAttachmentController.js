@@ -4,10 +4,15 @@ class TireAttachmentController {
   static async getHistory(req, res) {
     try {
       const { equipment_id, bed_id } = req.query;
+      const isAdmin = req.user?.role?.toLowerCase() === "admin";
+      const terminalIds = (!isAdmin && Array.isArray(req.user?.terminalIds)) 
+        ? req.user.terminalIds 
+        : null;
+
       const history = await TireAttachmentModel.getHistory({
         equipment_id,
         bed_id,
-      });
+      }, terminalIds);
       res.json({ success: true, data: history });
     } catch (error) {
       console.error("Get tire attachment history controller error:", error);
