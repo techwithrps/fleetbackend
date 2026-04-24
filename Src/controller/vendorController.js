@@ -51,24 +51,6 @@ class VendorController {
         });
       }
 
-      const userTerminalIds = req.user?.terminalIds || [];
-      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
-      
-      if (!isAdmin) {
-        if (!payload.terminal_id) {
-          return res.status(400).json({
-            success: false,
-            error: "Terminal selection is required.",
-          });
-        }
-        if (!userTerminalIds.includes(Number(payload.terminal_id))) {
-          return res.status(403).json({
-            success: false,
-            error: "You cannot create a vendor for an unassigned terminal.",
-          });
-        }
-      }
-
       const validationErrors = validateVendorPayload(payload);
       if (validationErrors.length > 0) {
         return res.status(400).json({
@@ -164,24 +146,6 @@ class VendorController {
         });
       }
 
-      const userTerminalIds = req.user?.terminalIds || [];
-      const isAdmin = req.user?.role?.toLowerCase() === 'admin';
-      
-      if (!isAdmin) {
-        if (!payload.terminal_id) {
-          return res.status(400).json({
-            success: false,
-            error: "Terminal selection is required.",
-          });
-        }
-        if (!userTerminalIds.includes(Number(payload.terminal_id))) {
-          return res.status(403).json({
-            success: false,
-            error: "You cannot update a vendor for an unassigned terminal.",
-          });
-        }
-      }
-
       const validationErrors = validateVendorPayload(payload);
       if (validationErrors.length > 0) {
         return res.status(400).json({
@@ -192,7 +156,7 @@ class VendorController {
       }
 
       // Check if vendor exists
-      const existingVendor = await VendorModel.getById(id);
+      const existingVendor = await VendorModel.getById(id, req.user);
       if (!existingVendor) {
         return res.status(404).json({
           success: false,
@@ -301,8 +265,7 @@ class VendorController {
   // Keep existing methods for getAllVendors, getVendorById, deleteVendor...
   static async getAllVendors(req, res) {
     try {
-      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
-      const vendors = await VendorModel.getAll(terminalIds);
+      const vendors = await VendorModel.getAll(req.user);
       res.json({ success: true, data: vendors });
     } catch (error) {
       console.error("Get all vendors controller error:", error);
@@ -325,8 +288,7 @@ class VendorController {
         });
       }
 
-      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
-      const vendor = await VendorModel.getById(id, terminalIds);
+      const vendor = await VendorModel.getById(id, req.user);
       if (!vendor) {
         return res.status(404).json({
           success: false,
@@ -356,9 +318,8 @@ class VendorController {
         });
       }
 
-      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
       // Check if vendor exists
-      const existingVendor = await VendorModel.getById(id, terminalIds);
+      const existingVendor = await VendorModel.getById(id, req.user);
       if (!existingVendor) {
         return res.status(404).json({
           success: false,

@@ -7,8 +7,7 @@ const {
 class DriverController {
   static async getAllDrivers(req, res) {
     try {
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const drivers = await DriverModel.getAll(terminalId);
+      const drivers = await DriverModel.getAll(req.user);
       res.json({ success: true, data: drivers });
     } catch (error) {
       console.error("Get all drivers controller error:", error);
@@ -25,8 +24,7 @@ class DriverController {
         return res.status(400).json({ success: false, error: "Valid vendor ID is required." });
       }
       
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const drivers = await DriverModel.getByVendorId(vendorId, terminalId);
+      const drivers = await DriverModel.getByVendorId(vendorId, req.user);
       res.json({ success: true, data: drivers });
     } catch (error) {
       console.error("Get drivers by vendor ID controller error:", error);
@@ -43,8 +41,7 @@ class DriverController {
         return res.status(400).json({ success: false, error: "Valid driver ID is required." });
       }
       
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const driver = await DriverModel.getById(id, terminalId);
+      const driver = await DriverModel.getById(id, req.user);
       if (!driver) {
         return res.status(404).json({ success: false, message: "Driver not found." });
       }
@@ -161,9 +158,8 @@ class DriverController {
         });
       }
       
-      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
       // Check if driver exists
-      const existingDriver = await DriverModel.getById(id, terminalIds);
+      const existingDriver = await DriverModel.getById(id, req.user);
       if (!existingDriver) {
         return res.status(404).json({ success: false, error: "Driver not found." });
       }
@@ -194,9 +190,8 @@ class DriverController {
         return res.status(400).json({ success: false, error: "Valid driver ID is required." });
       }
       
-      const userTerminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
       // Check if driver exists
-      const existingDriver = await DriverModel.getById(id, userTerminalId);
+      const existingDriver = await DriverModel.getById(id, req.user);
       if (!existingDriver) {
         return res.status(404).json({ success: false, error: "Driver not found." });
       }
@@ -232,8 +227,7 @@ class DriverController {
   // Get vendors for dropdown
   static async getVendors(req, res) {
     try {
-      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
-      const vendors = await DriverModel.getVendors(terminalIds);
+      const vendors = await DriverModel.getVendors(req.user);
       res.json({ success: true, data: vendors });
     } catch (error) {
       console.error("Get vendors controller error:", error);

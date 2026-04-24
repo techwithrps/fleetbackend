@@ -6,7 +6,11 @@ const getAllUsers = async (req, res) => {
     await pool.connect();
     const result = await pool
       .request()
-      .query("SELECT id, name, email, phone, role FROM users");
+      .query(`
+        SELECT u.id, u.name, u.email, u.phone, r.role_name as role 
+        FROM users u 
+        LEFT JOIN roles r ON u.role_id = r.id
+      `);
 
     const users = result.recordset;
     res.status(200).json({ users });

@@ -38,8 +38,7 @@ class EquipmentController {
   // Get all vehicles
   static async getAllEquipment(req, res) {
     try {
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const equipment = await EquipmentModel.getAll(terminalId);
+      const equipment = await EquipmentModel.getAll(req.user);
       res.json({ success: true, data: equipment });
     } catch (error) {
       console.error("Get all vehicle controller error:", error);
@@ -57,8 +56,7 @@ class EquipmentController {
         return res.status(400).json({ success: false, error: "Valid vehicle ID is required." });
       }
       
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const equipment = await EquipmentModel.getById(id, terminalId);
+      const equipment = await EquipmentModel.getById(id, req.user);
       
       if (!equipment) {
         return res.status(404).json({ success: false, error: "Vehicle not found." });
@@ -170,7 +168,7 @@ class EquipmentController {
       }
       
       // Check if vehicle exists
-      const existingEquipment = await EquipmentModel.getById(id);
+      const existingEquipment = await EquipmentModel.getById(id, req.user);
       if (!existingEquipment) {
         return res.status(404).json({ success: false, error: "Vehicle not found." });
       }
@@ -196,7 +194,7 @@ class EquipmentController {
         return res.status(400).json({ success: false, error: "Valid vehicle ID is required." });
       }
       
-      const existingEquipment = await EquipmentModel.getById(id);
+      const existingEquipment = await EquipmentModel.getById(id, req.user);
       if (!existingEquipment) {
         return res.status(404).json({ success: false, error: "Vehicle not found." });
       }

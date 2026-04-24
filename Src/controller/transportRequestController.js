@@ -404,7 +404,7 @@ exports.getAllRequests = async (req, res) => {
     const { requests, totalRequests } = await TransportRequest.getAllRequests(
       page,
       limit,
-      req.user.terminalId
+      req.user
     );
     res.status(200).json({
       success: true,
@@ -515,7 +515,7 @@ exports.getFilteredRequests = async (req, res) => {
     };
 
     const { requests, totalRequests } =
-      await TransportRequest.getRequestsByFilters(filters, req.user.terminalId);
+      await TransportRequest.getRequestsByFilters(filters, req.user);
 
     res.status(200).json({
       success: true,

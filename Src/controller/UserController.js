@@ -7,11 +7,28 @@ const normalizeRole = (role) => {
   const map = {
     admin: "Admin",
     customer: "Customer",
+    finance: "Finance",
+    operations: "Operations",
     accounts: "Accounts",
     "reports & mis": "Reports & MIS",
     driver: "Driver",
   };
   return map[value] || role;
+};
+
+const resolveRoleId = async (role) => {
+  if (role === null || role === undefined || role === "") return null;
+
+  const numericRoleId = Number(role);
+  if (Number.isInteger(numericRoleId) && numericRoleId > 0) return numericRoleId;
+
+  const normalizedRoleName = normalizeRole(role);
+  const result = await pool
+    .request()
+    .input("role_name", sql.NVarChar(100), normalizedRoleName)
+    .query(`SELECT TOP 1 id FROM dbo.roles WHERE role_name = @role_name`);
+  const resolved = result.recordset[0]?.id;
+  return resolved ?? null;
 };
 
 const hasUserSoftDelete = async () => {
@@ -42,14 +59,20 @@ const hasUserUpdatedAt = async () => {
 exports.getAllusers = async (req, res) => {
   try {
     const useSoftDelete = await hasUserSoftDelete();
-    const result = await pool.request().query(useSoftDelete ? `
-      SELECT id, name, email, phone, role, created_at 
-      FROM users
-      WHERE is_active = 1
-    ` : `
-      SELECT id, name, email, phone, role, created_at 
-      FROM users
-    `);
+    const result = await pool.request().query(
+      useSoftDelete
+        ? `
+      SELECT u.id, u.name, u.email, u.phone, r.role_name as role, u.created_at
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.is_active = 1
+    `
+        : `
+      SELECT u.id, u.name, u.email, u.phone, r.role_name as role, u.created_at
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+    `
+    );
 
     if (result.recordset.length === 0) {
       return res.status(404).json({
@@ -80,13 +103,15 @@ exports.getUserById = async (req, res) => {
       .request()
       .input("id", sql.Int, id)
       .query(useSoftDelete ? `
-        SELECT id, name, email, phone, role, created_at
-        FROM users
-        WHERE id = @id AND is_active = 1
+        SELECT u.id, u.name, u.email, u.phone, r.role_name as role, u.created_at
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        WHERE u.id = @id AND u.is_active = 1
       ` : `
-        SELECT id, name, email, phone, role, created_at
-        FROM users
-        WHERE id = @id
+        SELECT u.id, u.name, u.email, u.phone, r.role_name as role, u.created_at
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        WHERE u.id = @id
       `);
 
     if (result.recordset.length === 0) {
@@ -114,10 +139,10 @@ exports.createUser = async (req, res) => {
     const { name, email, phone, password, role } = req.body;
     const useSoftDelete = await hasUserSoftDelete();
 
-    if (!name || !email || !password || !role) {
+    if (!name || !email || !phone || !password || !role) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, password and role are required",
+        message: "Name, email, phone, password and role are required",
       });
     }
 
@@ -137,26 +162,35 @@ exports.createUser = async (req, res) => {
       });
     }
 
-    const normalizedRole = normalizeRole(role);
+    const roleId = await resolveRoleId(role);
+    if (!roleId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role",
+      });
+    }
     const passwordHash = await bcrypt.hash(password, 10);
 
     const created = await pool
       .request()
       .input("name", sql.VarChar, name)
       .input("email", sql.VarChar, email)
-      .input("phone", sql.VarChar, phone || null)
+      .input("phone", sql.VarChar, phone)
       .input("password", sql.VarChar, passwordHash)
-      .input("role", sql.VarChar, normalizedRole)
+      .input("role_id", sql.Int, roleId)
       .query(`
-        INSERT INTO users (name, email, phone, password, role)
-        OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.phone, INSERTED.role, INSERTED.created_at
-        VALUES (@name, @email, @phone, @password, @role)
+        INSERT INTO users (name, email, phone, password, role_id)
+        OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.phone, INSERTED.role_id, INSERTED.created_at
+        VALUES (@name, @email, @phone, @password, @role_id)
       `);
 
     return res.status(201).json({
       success: true,
       message: "User created successfully",
-      data: created.recordset[0],
+      data: {
+        ...created.recordset[0],
+        role: normalizeRole(role),
+      },
     });
   } catch (error) {
     console.error("Database error:", error);
@@ -198,21 +232,28 @@ exports.updateUser = async (req, res) => {
       passwordHash = await bcrypt.hash(password, 10);
     }
 
-    const nextRole = role ? normalizeRole(role) : currentUser.role;
+    const nextRoleId = role ? await resolveRoleId(role) : currentUser.role_id;
+    if (role && !nextRoleId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role",
+      });
+    }
 
     const result = await pool.request()
       .input("id", sql.Int, id)
       .input("name", sql.VarChar, name || currentUser.name)
+      .input("email", sql.VarChar, email || currentUser.email)
       .input("phone", sql.VarChar, phone || currentUser.phone)
-      .input("role", sql.VarChar, nextRole)
+      .input("role_id", sql.Int, nextRoleId)
       .input("password", sql.VarChar, passwordHash)
       .query(useSoftDelete ? `
         UPDATE users 
-        SET name = @name, phone = @phone, role = @role, password = @password${hasUpdatedAt ? ", updated_at = GETDATE()" : ""}
+        SET name = @name, email = @email, phone = @phone, role_id = @role_id, password = @password${hasUpdatedAt ? ", updated_at = GETDATE()" : ""}
         WHERE id = @id AND is_active = 1
       ` : `
         UPDATE users 
-        SET name = @name, phone = @phone, role = @role, password = @password${hasUpdatedAt ? ", updated_at = GETDATE()" : ""}
+        SET name = @name, email = @email, phone = @phone, role_id = @role_id, password = @password${hasUpdatedAt ? ", updated_at = GETDATE()" : ""}
         WHERE id = @id
       `);
 
@@ -243,17 +284,23 @@ exports.updateUserRole = async (req, res) => {
       });
     }
 
-    const normalizedRole = normalizeRole(role);
+    const roleId = await resolveRoleId(role);
+    if (!roleId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role",
+      });
+    }
     const result = await pool.request()
-      .input("role", sql.VarChar, normalizedRole)
+      .input("role_id", sql.Int, roleId)
       .input("id", sql.Int, id)
       .query(useSoftDelete ? `
         UPDATE users 
-        SET role = @role${hasUpdatedAt ? ", updated_at = GETDATE()" : ""}
+        SET role_id = @role_id${hasUpdatedAt ? ", updated_at = GETDATE()" : ""}
         WHERE id = @id AND is_active = 1
       ` : `
         UPDATE users 
-        SET role = @role${hasUpdatedAt ? ", updated_at = GETDATE()" : ""}
+        SET role_id = @role_id${hasUpdatedAt ? ", updated_at = GETDATE()" : ""}
         WHERE id = @id
       `);
 

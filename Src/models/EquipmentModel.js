@@ -1,4 +1,5 @@
 const { pool, sql } = require("../config/dbconfig");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 class EquipmentModel {
   static DOCUMENT_COLUMNS = ["IMAGE", "FITNESS_DOC", "RC_DOC", "INSURANCE_DOC", "PERMIT_A", "PERMIT_B"];
@@ -116,27 +117,24 @@ class EquipmentModel {
     return false;
   }
 
-  static async getAll(terminalId) {
+  static async getAll(user = null) {
     const schema = await this.detectSchema();
-    const isAdminAll = String(terminalId) === 'ALL';
     
     if (schema === "fleet") {
       const request = pool.request();
-      let query = `
+      const filter = applyLocationFilter(request, user, "e");
+
+      const query = `
         SELECT 
           e.*,
           v.VENDOR_NAME,
           v.VENDOR_CODE
         FROM FLEET_EQUIPMENT_MASTER e
         LEFT JOIN VENDOR_MASTER v ON e.VENDER_ID = v.VENDOR_ID
+        WHERE 1=1 ${filter}
+        ORDER BY e.EQUIPMENT_NO
       `;
       
-      if (!isAdminAll && terminalId) {
-        query += ` WHERE e.TERMINAL_ID = @terminalId`;
-        request.input("terminalId", sql.Numeric(18, 0), terminalId);
-      }
-      
-      query += ` ORDER BY e.EQUIPMENT_NO`;
       const result = await request.query(query);
       return result.recordset.map((row) => {
         const mapDoc = (docBuffer, docName) => docBuffer ? `api/equipment/${row.EQUIPMENT_ID}/document/${docName}` : null;
@@ -181,28 +179,24 @@ class EquipmentModel {
     return [];
   }
 
-  static async getById(equipmentId, terminalId) {
+  static async getById(equipmentId, user = null) {
     const schema = await this.detectSchema();
-    const isAdminAll = String(terminalId) === 'ALL';
 
     if (schema === "fleet") {
       const request = pool.request()
         .input("equipment_id", sql.Numeric(18, 0), equipmentId);
       
-      let query = `
+      const filter = applyLocationFilter(request, user, "e");
+
+      const query = `
           SELECT 
             e.*,
             v.VENDOR_NAME,
             v.VENDOR_CODE
           FROM FLEET_EQUIPMENT_MASTER e
           LEFT JOIN VENDOR_MASTER v ON e.VENDER_ID = v.VENDOR_ID
-          WHERE e.EQUIPMENT_ID = @equipment_id
+          WHERE e.EQUIPMENT_ID = @equipment_id ${filter}
       `;
-
-      if (!isAdminAll && terminalId) {
-        query += ` AND e.TERMINAL_ID = @terminalId`;
-        request.input("terminalId", sql.Numeric(18, 0), terminalId);
-      }
 
       const result = await request.query(query);
       const row = result.recordset[0];

@@ -1,4 +1,5 @@
 const { pool, sql } = require("../config/dbconfig");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 class TransactionModel {
   // Create a new transaction
@@ -71,13 +72,17 @@ class TransactionModel {
   }
 
   // Get all transactions
-  static async getAllTransactions() {
+  static async getAllTransactions(user = null) {
     try {
-      const result = await pool.request().query(`
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user, "tr");
+
+      const result = await request.query(`
         SELECT ttm.*, tr.status as request_status, u.name as customer_name
         FROM transport_transaction_master ttm
         INNER JOIN transport_requests tr ON ttm.request_id = tr.id
         INNER JOIN users u ON tr.customer_id = u.id
+        WHERE 1=1 ${filter}
         ORDER BY ttm.created_at DESC
       `);
 
@@ -89,17 +94,19 @@ class TransactionModel {
   }
 
   // Get transaction by ID
-  static async getTransactionById(id) {
+  static async getTransactionById(id, user = null) {
     try {
-      const result = await pool
-        .request()
-        .input("id", sql.Int, id)
-        .query(`
+      const request = pool.request()
+        .input("id", sql.Int, id);
+      
+      const filter = applyLocationFilter(request, user, "tr");
+
+      const result = await request.query(`
           SELECT ttm.*, tr.status as request_status, u.name as customer_name
           FROM transport_transaction_master ttm
           INNER JOIN transport_requests tr ON ttm.request_id = tr.id
           INNER JOIN users u ON tr.customer_id = u.id
-          WHERE ttm.id = @id
+          WHERE ttm.id = @id ${filter}
         `);
 
       return result.recordset[0];
@@ -110,15 +117,19 @@ class TransactionModel {
   }
 
   // Get transactions by request ID
-  static async getTransactionsByRequestId(requestId) {
+  static async getTransactionsByRequestId(requestId, user = null) {
     try {
-      const result = await pool
-        .request()
-        .input("requestId", sql.Int, requestId)
-        .query(`
-          SELECT * FROM transport_transaction_master
-          WHERE request_id = @requestId
-          ORDER BY created_at DESC
+      const request = pool.request()
+        .input("requestId", sql.Int, requestId);
+      
+      const filter = applyLocationFilter(request, user, "tr");
+
+      const result = await request.query(`
+          SELECT ttm.* 
+          FROM transport_transaction_master ttm
+          INNER JOIN transport_requests tr ON ttm.request_id = tr.id
+          WHERE ttm.request_id = @requestId ${filter}
+          ORDER BY ttm.created_at DESC
         `);
 
       return result.recordset;

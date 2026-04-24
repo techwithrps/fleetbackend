@@ -31,12 +31,11 @@ class VendorModel {
     };
   }
 
-  static async getAll(terminalIds = null) {
+  static async getAll(user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool.request()
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
-        .query(`
+      const request = pool.request();
+
+      const result = await request.query(`
         SELECT 
           VENDOR_ID, TERMINAL_ID, VENDOR_CODE, VENDOR_NAME, ADDRESS, CITY, PIN_CODE, STATE_CODE, COUNTRY,
           EMAIL_ID1, EMAIL_ID2, CONTACT_NO, MOBILE_NO, FAX, PAYMENT_TERMS, PAN, TAN,
@@ -64,12 +63,10 @@ class VendorModel {
     }
   }
 
-  static async getById(vendorId, terminalIds = null) {
+  static async getById(vendorId, user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
       const request = pool.request()
-        .input("vendor_id", sql.Numeric(10, 0), vendorId)
-        .input("terminal_ids", sql.VarChar, terminalIdsStr);
+        .input("vendor_id", sql.Numeric(10, 0), vendorId);
         
       const result = await request.query(`
           SELECT 

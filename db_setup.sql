@@ -8,6 +8,23 @@ GO
 USE fleet2;
 GO
 
+-- Create roles table
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[roles]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[roles] (
+        [id] INT IDENTITY(1,1) PRIMARY KEY,
+        [role_name] NVARCHAR(100) NOT NULL UNIQUE
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM [dbo].[roles] WHERE [role_name] = 'admin')
+BEGIN
+    INSERT INTO [dbo].[roles] ([role_name])
+    VALUES ('admin'), ('accounts'), ('finance'), ('customer'), ('driver'), ('reports & mis');
+END
+GO
+
 -- Create users table
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[users]') AND type in (N'U'))
 BEGIN
@@ -17,9 +34,10 @@ BEGIN
         [email] NVARCHAR(255) NOT NULL UNIQUE,
         [phone] NVARCHAR(20),
         [password] NVARCHAR(255) NOT NULL,
-        [role] NVARCHAR(20) NOT NULL DEFAULT 'customer',
+        [role_id] INT NULL,
         [created_at] DATETIME DEFAULT GETDATE(),
-        [updated_at] DATETIME DEFAULT GETDATE()
+        [updated_at] DATETIME DEFAULT GETDATE(),
+        CONSTRAINT [FK_users_roles] FOREIGN KEY ([role_id]) REFERENCES [roles]([id])
     );
 END
 GO
@@ -200,10 +218,10 @@ GO
 IF NOT EXISTS (SELECT TOP 1 * FROM [users] WHERE email = 'adityathakur6199@gmail.com')
 BEGIN
     -- Password is 'aditya@123' hashed with bcrypt
-    INSERT INTO [users] ([name], [email], [phone], [password], [role])
+    INSERT INTO [users] ([name], [email], [phone], [password], [role_id])
     VALUES 
-    ('Admin User', 'adityathakur6199@gmail.com', '9876543210', '$2a$10$6Bnv6xUyEX6WyIHVpKR3h.c97uucQJ.RpxmYkHe/slTzPz9.QEFwi', 'admin'),
-    ('Customer User', 'adityathakur2199@gmail.com', '9876543211', '$2a$10$6Bnv6xUyEX6WyIHVpKR3h.c97uucQJ.RpxmYkHe/slTzPz9.QEFwi', 'customer');
+    ('Admin User', 'adityathakur6199@gmail.com', '9876543210', '$2a$10$6Bnv6xUyEX6WyIHVpKR3h.c97uucQJ.RpxmYkHe/slTzPz9.QEFwi', (SELECT TOP 1 id FROM [roles] WHERE [role_name] = 'admin')),
+    ('Customer User', 'adityathakur2199@gmail.com', '9876543211', '$2a$10$6Bnv6xUyEX6WyIHVpKR3h.c97uucQJ.RpxmYkHe/slTzPz9.QEFwi', (SELECT TOP 1 id FROM [roles] WHERE [role_name] = 'customer'));
 END
 GO
 

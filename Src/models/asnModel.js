@@ -1,19 +1,15 @@
 const { pool, sql } = require("../config/dbconfig");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 const ASNMaster = {
   // Get all records
-  async getAll(terminalId) {
+  async getAll(user = null) {
     try {
       const request = pool.request();
-      const isAdminAll = String(terminalId) === 'ALL';
-      let query = "SELECT * FROM ASN_MASTER";
+      const filter = applyLocationFilter(request, user);
       
-      if (!isAdminAll && terminalId) {
-        query += " WHERE TERMINAL_ID = @terminalId";
-        request.input("terminalId", sql.Numeric(18, 0), terminalId);
-      }
+      let query = `SELECT * FROM ASN_MASTER WHERE 1=1 ${filter} ORDER BY CreatedAt DESC`;
       
-      query += " ORDER BY CreatedAt DESC";
       const result = await request.query(query);
       return result.recordset;
     } catch (error) {
@@ -22,17 +18,13 @@ const ASNMaster = {
   },
 
   // Get record by ID
-  async getById(id, terminalId) {
+  async getById(id, user = null) {
     try {
       const request = pool.request();
-      const isAdminAll = String(terminalId) === 'ALL';
-      let query = "SELECT * FROM ASN_MASTER WHERE ID = @id";
+      const filter = applyLocationFilter(request, user);
       
       request.input("id", sql.Int, id);
-      if (!isAdminAll && terminalId) {
-        query += " AND TERMINAL_ID = @terminalId";
-        request.input("terminalId", sql.Numeric(18, 0), terminalId);
-      }
+      const query = `SELECT * FROM ASN_MASTER WHERE ID = @id ${filter}`;
       
       const result = await request.query(query);
       return result.recordset[0];

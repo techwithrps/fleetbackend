@@ -1,23 +1,21 @@
 const { pool, sql } = require("../config/dbconfig");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 class JobOrderModel {
-  static async getAll(status, terminalIds = null) {
+  static async getAll(status, user = null) {
     try {
       const request = pool.request();
       if (status) {
         request.input("status", sql.VarChar(20), status);
       }
       
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      if (terminalIds) {
-        request.input("terminal_ids", sql.VarChar, terminalIdsStr);
-      }
+      const filter = applyLocationFilter(request, user);
       
       const whereConditions = [];
       if (status) whereConditions.push("STATUS = @status");
-      if (terminalIds) whereConditions.push("(@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))");
       
-      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
+      let whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "WHERE 1=1";
+      whereClause += filter;
 
       const result = await request.query(`
         SELECT *
@@ -32,18 +30,17 @@ class JobOrderModel {
     }
   }
 
-  static async getById(jobId, terminalIds = null) {
+  static async getById(jobId, user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool
-        .request()
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user);
+      
+      const result = await request
         .input("jo_id", sql.Numeric(18, 0), jobId)
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT *
           FROM JOB_ORDER
-          WHERE JO_ID = @jo_id
-          AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
+          WHERE JO_ID = @jo_id ${filter}
         `);
       return result.recordset[0] || null;
     } catch (error) {

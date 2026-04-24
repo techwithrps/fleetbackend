@@ -1,15 +1,16 @@
 const { pool, sql } = require("../config/dbconfig");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 class TireModel {
-  static async getAll(terminalIds = null) {
+  static async getAll(user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool.request()
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
-        .query(`
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user);
+      
+      const result = await request.query(`
         SELECT *
         FROM TIRE_MASTER
-        WHERE (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
+        WHERE 1=1 ${filter}
         ORDER BY TIRE_NO
       `);
 
@@ -20,18 +21,17 @@ class TireModel {
     }
   }
 
-  static async getById(tireId, terminalIds = null) {
+  static async getById(tireId, user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool
-        .request()
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user);
+
+      const result = await request
         .input("tire_id", sql.Numeric(18, 0), tireId)
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT *
           FROM TIRE_MASTER
-          WHERE TIRE_ID = @tire_id
-          AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
+          WHERE TIRE_ID = @tire_id ${filter}
         `);
 
       return result.recordset[0] || null;
@@ -210,18 +210,17 @@ class TireModel {
     }
   }
 
-  static async search(searchText, terminalIds = null) {
+  static async search(searchText, user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool
-        .request()
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user);
+
+      const result = await request
         .input("search", sql.VarChar(100), `%${searchText}%`)
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
           SELECT *
           FROM TIRE_MASTER
-          WHERE (TIRE_NO LIKE @search OR COMPANY LIKE @search)
-          AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
+          WHERE (TIRE_NO LIKE @search OR COMPANY LIKE @search) ${filter}
           ORDER BY TIRE_NO
         `);
 

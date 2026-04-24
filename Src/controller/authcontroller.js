@@ -2,6 +2,49 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { pool, sql } = require("../config/dbconfig");
 
+const fetchLocationsForUser = async ({ userId, defaultTerminalId, customerId }) => {
+  const result = await pool
+    .request()
+    .input("user_id", sql.Int, userId)
+    .input("default_terminal_id", sql.Numeric(18, 0), defaultTerminalId ?? null)
+    .input("customer_id", sql.Int, customerId ?? null)
+    .query(`
+      SELECT DISTINCT id, name
+      FROM (
+        SELECT
+          CAST(lm.LOCATION_ID AS NUMERIC(18,0)) AS id,
+          lm.LOCATION_NAME AS name
+        FROM dbo.user_locations ul
+        JOIN dbo.LOCATION_MASTER lm ON ul.terminal_id = lm.LOCATION_ID
+        WHERE ul.user_id = @user_id
+
+        UNION
+
+        SELECT
+          CAST(LOCATION_ID AS NUMERIC(18,0)) AS id,
+          LOCATION_NAME AS name
+        FROM dbo.LOCATION_MASTER
+        WHERE LOCATION_ID IS NOT NULL
+          AND @default_terminal_id IS NOT NULL
+          AND (TERMINAL_ID = @default_terminal_id OR LOCATION_ID = @default_terminal_id)
+
+        UNION
+
+        SELECT
+          CAST(LOCATION_ID AS NUMERIC(18,0)) AS id,
+          LOCATION_NAME AS name
+        FROM dbo.LOCATION_MASTER
+        WHERE LOCATION_ID IS NOT NULL
+          AND @default_terminal_id IS NULL
+          AND @customer_id IS NOT NULL
+          AND CUSTOMER_ID = @customer_id
+      ) src
+      ORDER BY name
+    `);
+
+  return result.recordset;
+};
+
 const getUserAccessContext = async (userId, role) => {
   try {
     if (role && role.toLowerCase() === 'admin') {
@@ -14,48 +57,62 @@ const getUserAccessContext = async (userId, role) => {
       const permissions = {};
       
       pageResult.recordset.forEach(r => {
-        permissions[r.PAGE_NAME] = { can_view: 1, can_create: 1, can_edit: 1 };
+        permissions[r.PAGE_NAME] = { can_view: 1, can_create: 1, can_edit: 1, can_delete: 1 };
       });
       
       return { terminalIds, pageIds, pageNames, permissions };
     }
 
-    const result = await pool.request()
+    const userMeta = await pool
+      .request()
+      .input("user_id", sql.Int, userId)
+      .query(`SELECT default_terminal_id, customer_id FROM dbo.users WHERE id = @user_id`);
+
+    const defaultTerminalId = userMeta.recordset[0]?.default_terminal_id ?? null;
+    const customerId = userMeta.recordset[0]?.customer_id ?? null;
+
+    const accessibleLocations = await fetchLocationsForUser({
+      userId,
+      defaultTerminalId,
+      customerId,
+    });
+
+    const terminalIds = accessibleLocations
+      .map((r) => Number(r.id))
+      .filter((x) => Number.isFinite(x));
+
+    const result = await pool
+      .request()
       .input("user_id", sql.Int, userId)
       .query(`
-        SELECT 
-          CAST(u.LOCATION_ID AS NUMERIC(18,0)) as location_id, 
-          u.PAGE_ID, 
+        SELECT
+          up.page_id AS PAGE_ID,
           p.PAGE_NAME,
-          ISNULL(u.CAN_VIEW, 0) as can_view,
-          ISNULL(u.CAN_CREATE, 0) as can_create,
-          ISNULL(u.CAN_EDIT, 0) as can_edit
-        FROM dbo.USER_PAGE_ACCESS_MAPPING u
-        JOIN dbo.PAGE_MASTER p ON u.PAGE_ID = p.PAGE_ID
-        WHERE u.USER_ID = @user_id
+          ISNULL(up.can_view, 0) AS can_view,
+          ISNULL(up.can_create, 0) AS can_create,
+          ISNULL(up.can_edit, 0) AS can_edit,
+          ISNULL(up.can_delete, 0) AS can_delete
+        FROM dbo.USER_PERMISSIONS up
+        JOIN dbo.PAGE_MASTER p ON up.page_id = p.PAGE_ID
+        WHERE up.user_id = @user_id
       `);
-    
-    // Extract unique terminal/location IDs
-    const terminalIds = [...new Set(result.recordset.map(r => Number(r.location_id)))];
-    
-    // Only include pages in pageNames/pageIds if CAN_VIEW is 1 at least in one location
-    const viewedPages = result.recordset.filter(r => r.can_view);
-    const pageIds = [...new Set(viewedPages.map(r => Number(r.PAGE_ID)))];
-    const pageNames = [...new Set(viewedPages.map(r => r.PAGE_NAME))];
-    
-    // Create a permissions map: { "Page Name": { can_view: 1, can_create: 1, can_edit: 1 } }
-    // Note: If a page is assigned to multiple locations, we union the permissions (OR logic)
+
+    const viewedPages = result.recordset.filter((r) => r.can_view);
+    const pageIds = [...new Set(viewedPages.map((r) => Number(r.PAGE_ID)))];
+    const pageNames = [...new Set(viewedPages.map((r) => r.PAGE_NAME))];
+
     const permissions = {};
-    result.recordset.forEach(r => {
+    result.recordset.forEach((r) => {
       const name = r.PAGE_NAME;
       if (!permissions[name]) {
-        permissions[name] = { can_view: 0, can_create: 0, can_edit: 0 };
+        permissions[name] = { can_view: 0, can_create: 0, can_edit: 0, can_delete: 0 };
       }
       permissions[name].can_view = permissions[name].can_view || r.can_view;
       permissions[name].can_create = permissions[name].can_create || r.can_create;
       permissions[name].can_edit = permissions[name].can_edit || r.can_edit;
+      permissions[name].can_delete = permissions[name].can_delete || r.can_delete;
     });
-    
+
     return { terminalIds, pageIds, pageNames, permissions };
   } catch (error) {
     console.error("Error fetching user access context:", error);
@@ -81,18 +138,21 @@ exports.signup = async (req, res) => {
 exports.validate = async (req, res) => {
   try {
     const useSoftDelete = await hasUserSoftDelete();
+    const query = useSoftDelete ? `
+        SELECT u.id, u.name, u.email, r.role_name as role
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        WHERE u.id = @id AND u.is_active = 1
+      ` : `
+        SELECT u.id, u.name, u.email, r.role_name as role
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        WHERE u.id = @id
+      `;
     const result = await pool
       .request()
       .input("id", sql.Int, req.user.id)
-      .query(useSoftDelete ? `
-        SELECT id, name, email, role
-        FROM users
-        WHERE id = @id AND is_active = 1
-      ` : `
-        SELECT id, name, email, role
-        FROM users
-        WHERE id = @id
-      `);
+      .query(query);
 
     const user = result.recordset[0];
     if (!user) {
@@ -108,6 +168,7 @@ exports.validate = async (req, res) => {
       success: true,
       user: {
         ...user,
+        terminalId: req.user.terminalId || null,
         terminalIds: accessContext.terminalIds || [],
         pageIds: accessContext.pageIds || [],
         pageNames: accessContext.pageNames || [],
@@ -138,14 +199,14 @@ exports.login = async (req, res) => {
     const useSoftDelete = await hasUserSoftDelete();
 
     // Find user
+    const loginQuery = useSoftDelete
+      ? "SELECT u.*, r.role_name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.email = @email AND u.is_active = 1"
+      : "SELECT u.*, r.role_name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.email = @email";
+
     const result = await pool
       .request()
       .input("email", sql.VarChar, email)
-      .query(
-        useSoftDelete
-          ? "SELECT * FROM users WHERE email = @email AND is_active = 1"
-          : "SELECT * FROM users WHERE email = @email"
-      );
+      .query(loginQuery);
 
     const user = result.recordset[0];
 
@@ -188,6 +249,7 @@ exports.login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        terminalId: req.body.location || null,
         terminalIds: accessContext.terminalIds || [],
         pageIds: accessContext.pageIds || [],
         pageNames: accessContext.pageNames || [],
@@ -212,12 +274,13 @@ exports.getUserLocations = async (req, res) => {
     }
 
     const useSoftDelete = await hasUserSoftDelete();
+    const locQuery = useSoftDelete 
+      ? "SELECT u.id, u.password, u.default_terminal_id, u.customer_id, r.role_name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.email = @email AND u.is_active = 1" 
+      : "SELECT u.id, u.password, u.default_terminal_id, u.customer_id, r.role_name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.email = @email";
+
     const result = await pool.request()
       .input("email", sql.VarChar, email)
-      .query(useSoftDelete 
-        ? "SELECT id, password, role FROM users WHERE email = @email AND is_active = 1" 
-        : "SELECT id, password, role FROM users WHERE email = @email"
-      );
+      .query(locQuery);
 
     const user = result.recordset[0];
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -230,19 +293,63 @@ exports.getUserLocations = async (req, res) => {
       return res.json({ success: true, isAdmin: true, locations: [{ id: 'ALL', name: 'ALL LOCATIONS' }, ...locResult.recordset] });
     }
 
-    // For others, fetch mapped locations
-    const locResult = await pool.request()
-      .input("user_id", sql.Int, user.id)
-      .query(`
-        SELECT DISTINCT CAST(lm.LOCATION_ID AS NUMERIC(18,0)) as id, lm.LOCATION_NAME as name
-        FROM dbo.USER_PAGE_ACCESS_MAPPING upam
-        JOIN dbo.LOCATION_MASTER lm ON upam.LOCATION_ID = lm.LOCATION_ID
-        WHERE upam.USER_ID = @user_id
-      `);
+    const locResult = await fetchLocationsForUser({
+      userId: user.id,
+      defaultTerminalId: user.default_terminal_id,
+      customerId: user.customer_id,
+    });
 
-    return res.json({ success: true, isAdmin: false, locations: locResult.recordset });
+    return res.json({ success: true, isAdmin: false, locations: locResult });
   } catch (error) {
     console.error("Get user locations error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+exports.switchLocation = async (req, res) => {
+  const { locationId } = req.body;
+  const user = req.user;
+
+  try {
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Validate access: Admin can pick any, others only assigned
+    let hasAccess = false;
+    if (user.role?.toLowerCase() === 'admin') {
+      hasAccess = true;
+    } else {
+      const allowed = Array.isArray(user.terminalIds) ? user.terminalIds : [];
+      hasAccess = allowed.map(Number).includes(Number(locationId));
+    }
+
+    if (!hasAccess && locationId !== null) {
+      return res.status(403).json({ message: "Access denied to this location" });
+    }
+
+    // Generate NEW token with updated terminalId
+    const newToken = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        terminalId: locationId || null,
+        terminalIds: user.terminalIds || [],
+        pageIds: user.pageIds || [],
+        permissions: user.permissions || {},
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRATION }
+    );
+
+    res.json({
+      success: true,
+      token: newToken,
+      terminalId: locationId || null
+    });
+  } catch (error) {
+    console.error("Switch location error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

@@ -76,6 +76,14 @@ const isValidVehicleNo = (value) => {
 const isValidVin = (value) =>
   /^[A-HJ-NPR-Z0-9]{17}$/.test(String(value).toUpperCase());
 
+const toComparableDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
 const isValidDlNo = (value) => {
   const compact = String(value).replace(/[\s/-]/g, "").toUpperCase();
   return /^[A-Z]{2}[0-9]{2}[0-9A-Z]{7,15}$/.test(compact);
@@ -142,6 +150,18 @@ const validateEquipmentPayload = (data) => {
   const equipmentNo = getValue(data, "EQUIPMENT_NO", "equipment_no");
   const vinNo = getValue(data, "VIN_NO", "vin_no");
   const insuranceNo = getValue(data, "INSURANCE_NO", "insurance_no");
+  const purchaseDate = toComparableDate(getValue(data, "PURCHAGE_DATE", "purchase_date"));
+
+  const dateFields = [
+    { key: "REGISTRATION_DATE", label: "Registration Date" },
+    { key: "INS_VALIDITY", label: "Insurance Validity" },
+    { key: "PERMIT_FROM", label: "Permit From" },
+    { key: "PERMIT_TO", label: "Permit To" },
+    { key: "STATE_PERMIT_FROM", label: "State Permit From" },
+    { key: "STATE_PERMIT_TO", label: "State Permit To" },
+    { key: "POLLUTION_VALIDITY", label: "Pollution Validity" },
+    { key: "ROAD_TAX_VALIDITY", label: "Road Tax Validity" },
+  ];
 
   if (!isEmpty(equipmentNo) && !isValidVehicleNo(equipmentNo)) {
     errors.push("Invalid vehicle number format. Example: UP78CN6949");
@@ -151,6 +171,14 @@ const validateEquipmentPayload = (data) => {
   }
   if (!isEmpty(insuranceNo) && String(insuranceNo).trim().length < 6) {
     errors.push("Invalid insurance number. Please enter a valid policy number.");
+  }
+  if (purchaseDate) {
+    dateFields.forEach(({ key, label }) => {
+      const fieldDate = toComparableDate(getValue(data, key, key.toLowerCase()));
+      if (fieldDate && fieldDate < purchaseDate) {
+        errors.push(`${label} cannot be before Purchase Date.`);
+      }
+    });
   }
 
   return errors;

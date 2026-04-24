@@ -7,8 +7,8 @@ class AlertController {
       const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : 10;
 
       const [vehicleExpiries, driverExpiries] = await Promise.all([
-        AlertModel.getVehicleExpiryAlerts(days),
-        AlertModel.getDriverExpiryAlerts(days),
+        AlertModel.getVehicleExpiryAlerts(days, req.user),
+        AlertModel.getDriverExpiryAlerts(days, req.user),
       ]);
 
       res.json({

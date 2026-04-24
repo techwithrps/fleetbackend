@@ -1,4 +1,5 @@
 const { pool, sql } = require("../config/dbconfig");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 class TransportRequest {
   static async create(requestData) {
@@ -133,23 +134,22 @@ class TransportRequest {
     }
   }
 
-  static async getAllRequests(page, limit, terminalId) {
+  static async getAllRequests(page, limit, user = null) {
     try {
       const offset = (page - 1) * limit;
-      const isAdminAll = String(terminalId) === 'ALL';
 
       const countRequest = pool.request();
-      let countQuery = `SELECT COUNT(*) AS total FROM transport_requests`;
-      if (!isAdminAll) {
-        countQuery += ` WHERE TERMINAL_ID = @terminalId`;
-        countRequest.input("terminalId", sql.Numeric(18, 0), terminalId);
-      }
+      const filter = applyLocationFilter(countRequest, user);
+      
+      const countQuery = `SELECT COUNT(*) AS total FROM transport_requests WHERE 1=1 ${filter}`;
       const countResult = await countRequest.query(countQuery);
       const totalRequests = countResult.recordset[0].total;
 
       const resultRequest = pool.request()
         .input("offset", sql.Int, offset)
         .input("limit", sql.Int, limit);
+      
+      const locationFilter = applyLocationFilter(resultRequest, user, "tr");
 
       let query = `
           SELECT 
@@ -165,12 +165,8 @@ class TransportRequest {
             u.created_at as user_created_at
           FROM transport_requests tr
           LEFT JOIN users u ON tr.customer_id = u.id
+          WHERE 1=1 ${locationFilter}
       `;
-
-      if (!isAdminAll) {
-        query += ` WHERE tr.TERMINAL_ID = @terminalId`;
-        resultRequest.input("terminalId", sql.Numeric(18, 0), terminalId);
-      }
 
       query += ` ORDER BY tr.created_at DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
       
@@ -302,7 +298,7 @@ class TransportRequest {
       throw error;
     }
   }
-  static async getRequestsByFilters(filters, terminalId) {
+  static async getRequestsByFilters(filters, user = null) {
     try {
       const {
         shipa_no,
@@ -314,7 +310,8 @@ class TransportRequest {
         consigner,
       } = filters;
 
-      const isAdminAll = String(terminalId) === 'ALL';
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user, "tr");
 
       let query = `
         SELECT DISTINCT tr.*,
@@ -330,15 +327,10 @@ class TransportRequest {
         FROM transport_requests tr
         LEFT JOIN transporter_details td ON tr.id = td.request_id
         LEFT JOIN users u ON tr.customer_id = u.id
+        WHERE 1=1 ${filter}
       `;
 
       const whereClauses = [];
-      const request = pool.request();
-
-      if (!isAdminAll) {
-        whereClauses.push(`tr.TERMINAL_ID = @terminalId`);
-        request.input("terminalId", sql.Numeric(18, 0), terminalId);
-      }
 
       if (shipa_no) {
         whereClauses.push(`tr.SHIPA_NO LIKE @shipa_no`);
@@ -390,7 +382,7 @@ class TransportRequest {
       }
 
       if (whereClauses.length > 0) {
-        query += ` WHERE ${whereClauses.join(" AND ")}`;
+        query += ` AND ${whereClauses.join(" AND ")}`;
       }
 
       // Add ORDER BY clause

@@ -1,6 +1,7 @@
 const { pool, sql } = require("../config/dbconfig");
 const TransactionModel = require("../models/TransactionModel");
 const PaymentDetailsModel = require("../models/PaymentDetailsModel");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 class TransactionController {
   // Create a new transaction
@@ -25,15 +26,18 @@ class TransactionController {
       }
 
       // Get transport request details
-      const requestDetails = await pool
-        .request()
-        .input("requestId", sql.Int, request_id).query(`
+      const poolRequest = pool.request()
+        .input("requestId", sql.Int, request_id);
+      
+      const filter = applyLocationFilter(poolRequest, req.user);
+
+      const requestDetails = await poolRequest.query(`
           SELECT 
             tr.*, 
             u.name as customer_name
           FROM transport_requests tr
           INNER JOIN users u ON tr.customer_id = u.id
-          WHERE tr.id = @requestId
+          WHERE tr.id = @requestId ${filter}
         `);
 
       if (requestDetails.recordset.length === 0) {
@@ -122,7 +126,7 @@ class TransactionController {
   // Get all transactions
   static async getAllTransactions(req, res) {
     try {
-      const transactions = await TransactionModel.getAllTransactions();
+      const transactions = await TransactionModel.getAllTransactions(req.user);
 
       return res.status(200).json({
         success: true,
@@ -153,12 +157,17 @@ class TransactionController {
       }
 
       // Query to get transactions by transporter_id
-      const result = await pool
-        .request()
-        .input("transporterId", sql.Int, transporterIdInt).query(`
-          SELECT * FROM transport_transaction_master
-          WHERE transporter_id = @transporterId
-          ORDER BY created_at DESC
+      const request = pool.request()
+        .input("transporterId", sql.Int, transporterIdInt);
+      
+      const filter = applyLocationFilter(request, req.user, "tr");
+
+      const result = await request.query(`
+          SELECT ttm.* 
+          FROM transport_transaction_master ttm
+          INNER JOIN transport_requests tr ON ttm.request_id = tr.id
+          WHERE ttm.transporter_id = @transporterId ${filter}
+          ORDER BY ttm.created_at DESC
         `);
 
       return res.status(200).json({
@@ -190,7 +199,8 @@ class TransactionController {
       }
 
       const transaction = await TransactionModel.getTransactionById(
-        transactionId
+        transactionId,
+        req.user
       );
 
       if (!transaction) {
@@ -229,7 +239,8 @@ class TransactionController {
       }
 
       const transactions = await TransactionModel.getTransactionsByRequestId(
-        requestId
+        requestId,
+        req.user
       );
 
       return res.status(200).json({
@@ -463,12 +474,17 @@ class TransactionController {
       const { vehicleNumber } = req.params;
 
       // Query to get transactions by vehicle_number
-      const result = await pool
-        .request()
-        .input("vehicleNumber", sql.VarChar(50), vehicleNumber).query(`
-          SELECT * FROM transport_transaction_master
-          WHERE vehicle_number = @vehicleNumber
-          ORDER BY created_at DESC
+      const request = pool.request()
+        .input("vehicleNumber", sql.VarChar(50), vehicleNumber);
+      
+      const filter = applyLocationFilter(request, req.user, "tr");
+
+      const result = await request.query(`
+          SELECT ttm.* 
+          FROM transport_transaction_master ttm
+          INNER JOIN transport_requests tr ON ttm.request_id = tr.id
+          WHERE ttm.vehicle_number = @vehicleNumber ${filter}
+          ORDER BY ttm.created_at DESC
         `);
 
       return res.status(200).json({
@@ -499,14 +515,17 @@ class TransactionController {
       }
 
       // Query to get transactions by customer_id from transport_requests
-      const result = await pool
-        .request()
-        .input("customerId", sql.Int, customerIdInt).query(`
+      const request = pool.request()
+        .input("customerId", sql.Int, customerIdInt);
+      
+      const filter = applyLocationFilter(request, req.user, "tr");
+
+      const result = await request.query(`
           SELECT ttm.*, tr.status as request_status, u.name as customer_name
           FROM transport_transaction_master ttm
           INNER JOIN transport_requests tr ON ttm.request_id = tr.id
           INNER JOIN users u ON tr.customer_id = u.id
-          WHERE tr.customer_id = @customerId
+          WHERE tr.customer_id = @customerId ${filter}
           ORDER BY ttm.created_at DESC
         `);
 
@@ -568,6 +587,8 @@ class TransactionController {
       }
 
       // First get transactions
+      const filter = applyLocationFilter(request, req.user, "tr");
+
       const transactionResult = await request.query(`
         SELECT
           ttm.id,
@@ -591,7 +612,7 @@ class TransactionController {
         FROM transport_transaction_master ttm
         INNER JOIN transport_requests tr ON ttm.request_id = tr.id
         INNER JOIN users u ON tr.customer_id = u.id
-        WHERE ttm.total_paid > 0 ${whereClause}
+        WHERE ttm.total_paid > 0 ${whereClause} ${filter}
         ORDER BY ttm.created_at DESC
       `);
 

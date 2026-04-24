@@ -4,8 +4,7 @@ const ASNController = {
   // Get all ASN records
   async getAll(req, res) {
     try {
-      const terminalId = req.user.terminalId;
-      const records = await ASNMaster.getAll(terminalId);
+      const records = await ASNMaster.getAll(req.user);
       res.status(200).json({
         success: true,
         count: records.length,
@@ -25,8 +24,7 @@ const ASNController = {
   async getById(req, res) {
     try {
       const { id } = req.params;
-      const terminalId = req.user.terminalId;
-      const record = await ASNMaster.getById(parseInt(id), terminalId);
+      const record = await ASNMaster.getById(parseInt(id), req.user);
 
       if (!record) {
         return res.status(404).json({

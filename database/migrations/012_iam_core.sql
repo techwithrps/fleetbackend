@@ -1,5 +1,5 @@
 -- Core IAM schema for role-based permissions with tenant + terminal scoping.
--- This migration is additive and can run alongside the current users.role flow.
+-- This migration is additive and can run alongside the current users.role_id flow.
 
 IF OBJECT_ID('dbo.iam_tenants', 'U') IS NULL
 BEGIN

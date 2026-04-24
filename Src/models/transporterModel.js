@@ -1,4 +1,5 @@
 const { pool, sql } = require("../config/dbconfig");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 const transporterModel = {
   // Get transporter details by request ID
@@ -929,15 +930,19 @@ const transporterModel = {
     }
   },
 
-  getAllTransporters: async () => {
+  getAllTransporters: async (user = null) => {
     try {
-      const result = await pool.request().query(`
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user, "tr");
+
+      const result = await request.query(`
         SELECT 
           td.*, tr.status as request_status, tr.consignee, tr.consigner,
           u.name as customer_name, u.email as customer_email
         FROM transporter_details td
         INNER JOIN transport_requests tr ON td.request_id = tr.id
         INNER JOIN users u ON tr.customer_id = u.id
+        WHERE 1=1 ${filter}
         ORDER BY td.created_at DESC
       `);
       return result.recordset;
@@ -946,13 +951,17 @@ const transporterModel = {
     }
   },
 
-  checkTransportRequestExists: async (requestId) => {
+  checkTransportRequestExists: async (requestId, user = null) => {
     try {
-      const result = await pool.request().input("requestId", sql.Int, requestId)
-        .query(`
+      const request = pool.request()
+        .input("requestId", sql.Int, requestId);
+      
+      const filter = applyLocationFilter(request, user);
+
+      const result = await request.query(`
           SELECT id, status 
           FROM transport_requests 
-          WHERE id = @requestId
+          WHERE id = @requestId ${filter}
         `);
       return result.recordset[0];
     } catch (error) {

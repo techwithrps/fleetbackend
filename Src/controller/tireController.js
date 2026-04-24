@@ -3,8 +3,7 @@ const TireModel = require("../models/TireModel");
 class TireController {
   static async getAllTires(req, res) {
     try {
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const tires = await TireModel.getAll(terminalId);
+      const tires = await TireModel.getAll(req.user);
       res.json({ success: true, data: tires });
     } catch (error) {
       console.error("Get all tires controller error:", error);
@@ -25,8 +24,7 @@ class TireController {
           .json({ success: false, error: "Valid tire ID is required." });
       }
 
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const tire = await TireModel.getById(id, terminalId);
+      const tire = await TireModel.getById(id, req.user);
       if (!tire) {
         return res
           .status(404)
@@ -111,8 +109,7 @@ class TireController {
         }
       }
 
-      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
-      const existingTire = await TireModel.getById(id, terminalIds);
+      const existingTire = await TireModel.getById(id, req.user);
       if (!existingTire) {
         return res
           .status(404)
@@ -143,8 +140,7 @@ class TireController {
           .json({ success: false, error: "Valid tire ID is required." });
       }
 
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const existingTire = await TireModel.getById(id, terminalId);
+      const existingTire = await TireModel.getById(id, req.user);
       if (!existingTire) {
         return res
           .status(404)
@@ -179,8 +175,7 @@ class TireController {
           .json({ success: false, error: "Search text is required." });
       }
 
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const tires = await TireModel.search(search, terminalId);
+      const tires = await TireModel.search(search, req.user);
       res.json({ success: true, data: tires });
     } catch (error) {
       console.error("Search tires controller error:", error);

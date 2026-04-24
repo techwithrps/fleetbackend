@@ -18,7 +18,12 @@ exports.sendOtpAfterPassword = async (req, res) => {
   const result = await pool
     .request()
     .input("email", sql.VarChar, email)
-    .query("SELECT * FROM users WHERE email = @email");
+    .query(`
+      SELECT u.*, r.role_name as role 
+      FROM users u 
+      LEFT JOIN roles r ON u.role_id = r.id 
+      WHERE u.email = @email
+    `);
 
   const user = result.recordset[0];
   if (!user) return res.status(401).json({ message: "Invalid credentials" });
@@ -131,7 +136,12 @@ exports.verifyOtpAndLogin = async (req, res) => {
     const result = await pool
       .request()
       .input("email", sql.VarChar, email)
-      .query("SELECT id, name, email, role FROM users WHERE email = @email");
+      .query(`
+        SELECT u.id, u.name, u.email, r.role_name as role 
+        FROM users u 
+        LEFT JOIN roles r ON u.role_id = r.id 
+        WHERE u.email = @email
+      `);
 
     if (result.recordset.length === 0) {
       if (isDev) {

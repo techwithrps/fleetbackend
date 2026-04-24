@@ -4,8 +4,7 @@ class JobOrderController {
   static async getAllJobOrders(req, res) {
     try {
       const { status } = req.query;
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const orders = await JobOrderModel.getAll(status, terminalId);
+      const orders = await JobOrderModel.getAll(status, req.user);
       res.json({ success: true, data: orders });
     } catch (error) {
       console.error("Get all job orders controller error:", error);
@@ -23,8 +22,7 @@ class JobOrderController {
           .status(400)
           .json({ success: false, error: "Valid job order ID is required." });
       }
-      const terminalId = (req.user?.role?.toLowerCase() === 'admin' && String(req.user?.terminalId) === 'ALL') ? null : req.user?.terminalId;
-      const order = await JobOrderModel.getById(id, terminalId);
+      const order = await JobOrderModel.getById(id, req.user);
       if (!order) {
         return res
           .status(404)

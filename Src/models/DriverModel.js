@@ -1,19 +1,20 @@
 const { pool, sql } = require("../config/dbconfig");
+const { applyLocationFilter } = require("../utils/queryHelper");
 
 class DriverModel {
-  static async getAll(terminalIds = null) {
+  static async getAll(user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool.request()
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
-        .query(`
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user, "d");
+
+      const result = await request.query(`
         SELECT 
           d.*,
           v.VENDOR_NAME,
           v.VENDOR_CODE
         FROM DRIVER_MASTER d
         LEFT JOIN VENDOR_MASTER v ON d.VENDOR_ID = v.VENDOR_ID
-        WHERE (@terminal_ids IS NULL OR d.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
+        WHERE 1=1 ${filter}
         ORDER BY d.DRIVER_NAME
       `);
       return result.recordset;
@@ -23,22 +24,21 @@ class DriverModel {
     }
   }
 
-  static async getById(driverId, terminalIds = null) {
+  static async getById(driverId, user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool
-        .request()
-        .input("driver_id", sql.Numeric(18, 0), driverId)
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
-        .query(`
+      const request = pool.request()
+        .input("driver_id", sql.Numeric(18, 0), driverId);
+      
+      const filter = applyLocationFilter(request, user, "d");
+
+      const result = await request.query(`
           SELECT 
             d.*,
             v.VENDOR_NAME,
             v.VENDOR_CODE
           FROM DRIVER_MASTER d
           LEFT JOIN VENDOR_MASTER v ON d.VENDOR_ID = v.VENDOR_ID
-          WHERE d.DRIVER_ID = @driver_id
-          AND (@terminal_ids IS NULL OR d.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
+          WHERE d.DRIVER_ID = @driver_id ${filter}
         `);
 
       return result.recordset[0] || null;
@@ -293,22 +293,21 @@ class DriverModel {
     }
   }
 
-  static async getByVendorId(vendorId, terminalIds = null) {
+  static async getByVendorId(vendorId, user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool
-        .request()
-        .input("vendor_id", sql.Numeric(10, 0), vendorId)
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
-        .query(`
+      const request = pool.request()
+        .input("vendor_id", sql.Numeric(10, 0), vendorId);
+      
+      const filter = applyLocationFilter(request, user, "d");
+
+      const result = await request.query(`
           SELECT 
             d.*,
             v.VENDOR_NAME,
             v.VENDOR_CODE
           FROM DRIVER_MASTER d
           LEFT JOIN VENDOR_MASTER v ON d.VENDOR_ID = v.VENDOR_ID
-          WHERE d.VENDOR_ID = @vendor_id
-          AND (@terminal_ids IS NULL OR d.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
+          WHERE d.VENDOR_ID = @vendor_id ${filter}
           ORDER BY d.DRIVER_NAME
         `);
 
@@ -319,16 +318,15 @@ class DriverModel {
     }
   }
 
-  static async getVendors(terminalIds = null) {
+  static async getVendors(user = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
-      const result = await pool.request()
-        .input("terminal_ids", sql.VarChar, terminalIdsStr)
-        .query(`
+      const request = pool.request();
+      const filter = applyLocationFilter(request, user);
+
+      const result = await request.query(`
         SELECT VENDOR_ID, VENDOR_NAME, VENDOR_CODE
         FROM VENDOR_MASTER
-        WHERE (ACTIVE_FLAG = 'Y' OR ACTIVE_FLAG IS NULL)
-        AND (@terminal_ids IS NULL OR TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))
+        WHERE (ACTIVE_FLAG = 'Y' OR ACTIVE_FLAG IS NULL) ${filter}
         ORDER BY VENDOR_NAME
       `);
       return result.recordset;

@@ -24,13 +24,15 @@ const adminAuth = async (req, res, next) => {
       .request()
       .input("id", sql.Int, req.user.id)
       .query(useSoftDelete ? `
-        SELECT role
-        FROM users
-        WHERE id = @id AND is_active = 1
+        SELECT r.role_name AS role
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        WHERE u.id = @id AND u.is_active = 1
       ` : `
-        SELECT role
-        FROM users
-        WHERE id = @id
+        SELECT r.role_name AS role
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        WHERE u.id = @id
       `);
 
     const role = String(

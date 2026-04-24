@@ -38,7 +38,8 @@ class TransporterController {
 
       // Check if transport request exists
       const requestCheck = await transporterModel.checkTransportRequestExists(
-        transport_request_id
+        transport_request_id,
+        req.user
       );
       if (!requestCheck) {
         return res.status(404).json({
@@ -123,7 +124,8 @@ class TransporterController {
 
       // Check if transport request exists
       const requestCheck = await transporterModel.checkTransportRequestExists(
-        requestId
+        requestId,
+        req.user
       );
       if (!requestCheck) {
         return res.status(404).json({
@@ -304,7 +306,7 @@ class TransporterController {
   static async getAllTransporterDetails(req, res) {
     try {
       const transporterDetailsList =
-        await transporterModel.getAllTransporters();
+        await transporterModel.getAllTransporters(req.user);
 
       // Format dates for frontend
       const formattedList = transporterDetailsList.map((record) => ({
@@ -520,7 +522,8 @@ class TransporterController {
 
       // Check if transport request exists
       const requestCheck = await transporterModel.checkTransportRequestExists(
-        requestId
+        requestId,
+        req.user
       );
       if (!requestCheck) {
         return res.status(404).json({
