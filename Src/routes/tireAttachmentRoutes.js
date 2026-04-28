@@ -10,5 +10,6 @@ router.put(
   auth,
   TireAttachmentController.detachTire
 );
+router.put("/tire-attachments/detach-bulk", auth, TireAttachmentController.detachTiresBulk);
 
 module.exports = router;

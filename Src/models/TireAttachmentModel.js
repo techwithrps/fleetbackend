@@ -16,9 +16,9 @@ class TireAttachmentModel {
       if (bed_id) whereArgs.push("T.BED_ID = @bed_id");
 
       if (terminalIds) {
-        const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+        const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : String(terminalIds);
         request.input("terminal_ids", sql.VarChar, terminalIdsStr);
-        whereArgs.push("(@terminal_ids IS NULL OR E.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')) OR B.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')) OR TM.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))");
+        whereArgs.push("(@terminal_ids IS NULL OR T.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))");
       }
 
       const where = whereArgs.join(" AND ");
@@ -106,6 +106,8 @@ class TireAttachmentModel {
         .request()
         .input("tire_attach_id", sql.Numeric(18, 0), nextId)
         .input("attach_for", sql.VarChar(20), data.attach_for)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
+        .input("location_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("equipment_id", sql.Numeric(18, 0), data.equipment_id || null)
         .input("bed_id", sql.Numeric(18, 0), data.bed_id || null)
         .input("tire_id", sql.Numeric(18, 0), data.tire_id)
@@ -119,10 +121,12 @@ class TireAttachmentModel {
         .query(`
           INSERT INTO TIRE_ATTACHMENT_HISTORY (
             TIRE_ATTACH_ID,
-            ATTACH_FOR,
-            EQUIPMENT_ID,
-            BED_ID,
-            TIRE_ID,
+          ATTACH_FOR,
+          TERMINAL_ID,
+          location_id,
+          EQUIPMENT_ID,
+          BED_ID,
+          TIRE_ID,
             POSITION_ID,
             ATTACH_DATE,
             KM_RUN,
@@ -134,6 +138,8 @@ class TireAttachmentModel {
           VALUES (
             @tire_attach_id,
             @attach_for,
+            @terminal_id,
+            @location_id,
             @equipment_id,
             @bed_id,
             @tire_id,
@@ -178,6 +184,33 @@ class TireAttachmentModel {
       console.error("Detach tire error:", error);
       throw error;
     }
+  }
+
+  static async detachBulk(attachmentIds, data = {}) {
+    const ids = Array.isArray(attachmentIds) ? attachmentIds : [];
+    const results = [];
+
+    for (const attachmentId of ids) {
+      try {
+        await this.detach(attachmentId, data);
+        results.push({ success: true, attachment_id: attachmentId });
+      } catch (error) {
+        results.push({
+          success: false,
+          attachment_id: attachmentId,
+          error: error.message || "Failed to detach tire",
+        });
+      }
+    }
+
+    const successCount = results.filter((x) => x.success).length;
+    return {
+      success: true,
+      total: ids.length,
+      successCount,
+      failureCount: ids.length - successCount,
+      results,
+    };
   }
 }
 

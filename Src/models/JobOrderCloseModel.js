@@ -3,7 +3,7 @@ const { pool, sql } = require("../config/dbconfig");
 class JobOrderCloseModel {
   static async getAll(terminalIds = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const terminalIdsStr = terminalIds ? (Array.isArray(terminalIds) ? terminalIds.join(',') : String(terminalIds)) : null;
       const result = await pool.request()
         .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
@@ -21,7 +21,7 @@ class JobOrderCloseModel {
 
   static async getById(closeId, terminalIds = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const terminalIdsStr = terminalIds ? (Array.isArray(terminalIds) ? terminalIds.join(',') : String(terminalIds)) : null;
       const result = await pool
         .request()
         .input("jo_close_id", sql.Numeric(18, 0), closeId)

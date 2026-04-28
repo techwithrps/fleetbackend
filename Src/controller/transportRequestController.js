@@ -44,6 +44,15 @@ exports.createRequest = async (req, res) => {
       });
     }
 
+    const normalizedPickup = String(pickup_location || "").trim().toLowerCase();
+    const normalizedDelivery = String(delivery_location || "").trim().toLowerCase();
+    if (normalizedPickup && normalizedDelivery && normalizedPickup === normalizedDelivery) {
+      return res.status(400).json({
+        success: false,
+        message: "Pickup and delivery location cannot be same",
+      });
+    }
+
     // Validate SHIPA_NO if required
     if (!SHIPA_NO || SHIPA_NO.trim().length === 0) {
       return res.status(400).json({
@@ -282,6 +291,15 @@ exports.updateRequest = async (req, res) => {
           message: "Invalid delivery date format",
         });
       }
+    }
+
+    const normalizedPickup = String(pickup_location || "").trim().toLowerCase();
+    const normalizedDelivery = String(delivery_location || "").trim().toLowerCase();
+    if (normalizedPickup && normalizedDelivery && normalizedPickup === normalizedDelivery) {
+      return res.status(400).json({
+        success: false,
+        message: "Pickup and delivery location cannot be same",
+      });
     }
 
     const result = await pool

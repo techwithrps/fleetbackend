@@ -4,7 +4,14 @@ class BedAttachmentController {
   static async getHistory(req, res) {
     try {
       const { equipment_id, bed_id } = req.query;
-      const terminalIds = req.user?.role?.toLowerCase() === 'admin' ? null : req.user?.terminalIds;
+      const isAdmin = req.user?.role?.toLowerCase() === "admin";
+      const selectedTerminalId =
+        req.user?.terminalId && String(req.user.terminalId).toUpperCase() !== "ALL"
+          ? Number(req.user.terminalId)
+          : null;
+      const terminalIds = Number.isFinite(selectedTerminalId)
+        ? [selectedTerminalId]
+        : (isAdmin ? null : req.user?.terminalIds);
       const history = await BedAttachmentModel.getHistory({
         equipment_id,
         bed_id,
@@ -30,6 +37,14 @@ class BedAttachmentController {
       
       const userTerminalIds = req.user?.terminalIds || [];
       const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+      const selectedTerminalId =
+        req.user?.terminalId && String(req.user.terminalId).toUpperCase() !== "ALL"
+          ? Number(req.user.terminalId)
+          : null;
+
+      if (!data.terminal_id) {
+        data.terminal_id = Number.isFinite(selectedTerminalId) ? selectedTerminalId : null;
+      }
       
       if (!isAdmin) {
         if (!data.terminal_id) {

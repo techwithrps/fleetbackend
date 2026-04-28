@@ -1,11 +1,13 @@
 const { pool, sql } = require("../config/dbconfig");
-const { applyLocationFilter } = require("../utils/queryHelper");
+const { applyLocationFilterByTable } = require("../utils/queryHelper");
 
 class TireModel {
   static async getAll(user = null) {
     try {
       const request = pool.request();
-      const filter = applyLocationFilter(request, user);
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "TIRE_MASTER",
+      });
       
       const result = await request.query(`
         SELECT *
@@ -24,7 +26,9 @@ class TireModel {
   static async getById(tireId, user = null) {
     try {
       const request = pool.request();
-      const filter = applyLocationFilter(request, user);
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "TIRE_MASTER",
+      });
 
       const result = await request
         .input("tire_id", sql.Numeric(18, 0), tireId)
@@ -213,7 +217,9 @@ class TireModel {
   static async search(searchText, user = null) {
     try {
       const request = pool.request();
-      const filter = applyLocationFilter(request, user);
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "TIRE_MASTER",
+      });
 
       const result = await request
         .input("search", sql.VarChar(100), `%${searchText}%`)

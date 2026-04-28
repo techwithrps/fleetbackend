@@ -1,5 +1,5 @@
 const { pool, sql } = require("../config/dbconfig");
-const { applyLocationFilter } = require("../utils/queryHelper");
+const { applyLocationFilterByTable } = require("../utils/queryHelper");
 
 class JobOrderModel {
   static async getAll(status, user = null) {
@@ -9,7 +9,9 @@ class JobOrderModel {
         request.input("status", sql.VarChar(20), status);
       }
       
-      const filter = applyLocationFilter(request, user);
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "JOB_ORDER",
+      });
       
       const whereConditions = [];
       if (status) whereConditions.push("STATUS = @status");
@@ -33,7 +35,9 @@ class JobOrderModel {
   static async getById(jobId, user = null) {
     try {
       const request = pool.request();
-      const filter = applyLocationFilter(request, user);
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "JOB_ORDER",
+      });
       
       const result = await request
         .input("jo_id", sql.Numeric(18, 0), jobId)

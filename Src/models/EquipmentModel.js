@@ -1,5 +1,5 @@
 const { pool, sql } = require("../config/dbconfig");
-const { applyLocationFilter } = require("../utils/queryHelper");
+const { applyLocationFilterByTable } = require("../utils/queryHelper");
 
 class EquipmentModel {
   static DOCUMENT_COLUMNS = ["IMAGE", "FITNESS_DOC", "RC_DOC", "INSURANCE_DOC", "PERMIT_A", "PERMIT_B"];
@@ -122,7 +122,10 @@ class EquipmentModel {
     
     if (schema === "fleet") {
       const request = pool.request();
-      const filter = applyLocationFilter(request, user, "e");
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "FLEET_EQUIPMENT_MASTER",
+        alias: "e",
+      });
 
       const query = `
         SELECT 
@@ -185,8 +188,11 @@ class EquipmentModel {
     if (schema === "fleet") {
       const request = pool.request()
         .input("equipment_id", sql.Numeric(18, 0), equipmentId);
-      
-      const filter = applyLocationFilter(request, user, "e");
+
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "FLEET_EQUIPMENT_MASTER",
+        alias: "e",
+      });
 
       const query = `
           SELECT 

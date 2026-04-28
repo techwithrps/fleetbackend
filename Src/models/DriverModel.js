@@ -1,11 +1,14 @@
 const { pool, sql } = require("../config/dbconfig");
-const { applyLocationFilter } = require("../utils/queryHelper");
+const { applyLocationFilterByTable } = require("../utils/queryHelper");
 
 class DriverModel {
   static async getAll(user = null) {
     try {
       const request = pool.request();
-      const filter = applyLocationFilter(request, user, "d");
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "DRIVER_MASTER",
+        alias: "d",
+      });
 
       const result = await request.query(`
         SELECT 
@@ -29,7 +32,10 @@ class DriverModel {
       const request = pool.request()
         .input("driver_id", sql.Numeric(18, 0), driverId);
       
-      const filter = applyLocationFilter(request, user, "d");
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "DRIVER_MASTER",
+        alias: "d",
+      });
 
       const result = await request.query(`
           SELECT 
@@ -298,7 +304,10 @@ class DriverModel {
       const request = pool.request()
         .input("vendor_id", sql.Numeric(10, 0), vendorId);
       
-      const filter = applyLocationFilter(request, user, "d");
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "DRIVER_MASTER",
+        alias: "d",
+      });
 
       const result = await request.query(`
           SELECT 
@@ -321,7 +330,9 @@ class DriverModel {
   static async getVendors(user = null) {
     try {
       const request = pool.request();
-      const filter = applyLocationFilter(request, user);
+      const filter = await applyLocationFilterByTable(request, user, {
+        tableName: "VENDOR_MASTER",
+      });
 
       const result = await request.query(`
         SELECT VENDOR_ID, VENDOR_NAME, VENDOR_CODE

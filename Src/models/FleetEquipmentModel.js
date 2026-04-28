@@ -10,7 +10,7 @@ class FleetEquipmentModel {
 
   static async getAll(terminalIds = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const terminalIdsStr = terminalIds ? (Array.isArray(terminalIds) ? terminalIds.join(',') : String(terminalIds)) : null;
       const result = await pool.request()
         .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
@@ -27,7 +27,7 @@ class FleetEquipmentModel {
 
   static async getById(equipmentId, terminalIds = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const terminalIdsStr = terminalIds ? (Array.isArray(terminalIds) ? terminalIds.join(',') : String(terminalIds)) : null;
       const request = pool.request()
         .input("equipment_id", sql.Numeric(18, 0), equipmentId)
         .input("terminal_ids", sql.VarChar, terminalIdsStr);
@@ -70,6 +70,7 @@ class FleetEquipmentModel {
       const result = await pool
         .request()
         .input("terminal_id", sql.Numeric(18, 0), terminal_id ? Number(terminal_id) : null)
+        .input("location_id", sql.Numeric(18, 0), terminal_id ? Number(terminal_id) : null)
         .input("equipment_name", sql.VarChar(100), equipment_name?.trim())
         .input("equipment_type", sql.VarChar(50), equipment_type?.trim() || null)
         .input("equipment_model", sql.VarChar(50), equipment_model?.trim() || null)
@@ -89,14 +90,14 @@ class FleetEquipmentModel {
         .input("created_on", sql.DateTime, new Date())
         .query(`
           INSERT INTO FLEET_EQUIPMENT_MASTER (
-            TERMINAL_ID, EQUIPMENT_NAME, EQUIPMENT_TYPE, EQUIPMENT_MODEL, EQUIPMENT_MAKE, 
+            TERMINAL_ID, location_id, EQUIPMENT_NAME, EQUIPMENT_TYPE, EQUIPMENT_MODEL, EQUIPMENT_MAKE, 
             EQUIPMENT_YEAR, EQUIPMENT_CAPACITY, EQUIPMENT_STATUS, EQUIPMENT_LOCATION, 
             EQUIPMENT_PURCHASE_DATE, EQUIPMENT_PURCHASE_PRICE, EQUIPMENT_CURRENT_VALUE, 
             EQUIPMENT_MAINTENANCE_SCHEDULE, EQUIPMENT_LAST_MAINTENANCE_DATE, 
             EQUIPMENT_NEXT_MAINTENANCE_DATE, EQUIPMENT_NOTES, CREATED_BY, CREATED_ON
           ) 
           VALUES (
-            @terminal_id, @equipment_name, @equipment_type, @equipment_model, @equipment_make, 
+            @terminal_id, @location_id, @equipment_name, @equipment_type, @equipment_model, @equipment_make, 
             @equipment_year, @equipment_capacity, @equipment_status, @equipment_location, 
             @equipment_purchase_date, @equipment_purchase_price, @equipment_current_value, 
             @equipment_maintenance_schedule, @equipment_last_maintenance_date, 

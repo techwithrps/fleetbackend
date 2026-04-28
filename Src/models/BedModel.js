@@ -3,7 +3,7 @@ const { pool, sql } = require("../config/dbconfig");
 class BedModel {
   static async getAll(terminalIds = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const terminalIdsStr = terminalIds ? (Array.isArray(terminalIds) ? terminalIds.join(',') : String(terminalIds)) : null;
       const result = await pool.request()
         .input("terminal_ids", sql.VarChar, terminalIdsStr)
         .query(`
@@ -21,7 +21,7 @@ class BedModel {
 
   static async getById(bedId, terminalIds = null) {
     try {
-      const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : terminalIds;
+      const terminalIdsStr = terminalIds ? (Array.isArray(terminalIds) ? terminalIds.join(',') : String(terminalIds)) : null;
       const result = await pool
         .request()
         .input("bed_id", sql.Numeric(18, 0), bedId)
@@ -59,6 +59,7 @@ class BedModel {
         .request()
         .input("bed_id", sql.Numeric(18, 0), nextId)
         .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
+        .input("location_id", sql.Numeric(18, 0), data.terminal_id || null)
         .input("bed_no", sql.VarChar(50), data.bed_no)
         .input("bed_type", sql.VarChar(20), data.bed_type || null)
         .input("bed_size", sql.VarChar(20), data.bed_size || null)
@@ -76,6 +77,7 @@ class BedModel {
           INSERT INTO BED_MASTER (
             BED_ID,
             TERMINAL_ID,
+            location_id,
             BED_NO,
             BED_TYPE,
             BED_SIZE,
@@ -89,6 +91,7 @@ class BedModel {
           VALUES (
             @bed_id,
             @terminal_id,
+            @location_id,
             @bed_no,
             @bed_type,
             @bed_size,
