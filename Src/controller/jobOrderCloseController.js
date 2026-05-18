@@ -10,7 +10,7 @@ class JobOrderCloseController {
       console.error("Get job order close controller error:", error);
       res
         .status(500)
-        .json({ success: false, error: "Failed to fetch job order closes." });
+        .json({ success: false, error: error.message || "Failed to fetch job order closes." });
     }
   }
 
