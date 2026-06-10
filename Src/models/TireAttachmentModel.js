@@ -1,0 +1,217 @@
+const { pool, sql } = require("../config/dbconfig");
+
+class TireAttachmentModel {
+  static async getHistory({ equipment_id, bed_id }, terminalIds = null) {
+    try {
+      const request = pool.request();
+      if (equipment_id) {
+        request.input("equipment_id", sql.Numeric(18, 0), equipment_id);
+      }
+      if (bed_id) {
+        request.input("bed_id", sql.Numeric(18, 0), bed_id);
+      }
+
+      const whereArgs = [];
+      if (equipment_id) whereArgs.push("T.EQUIPMENT_ID = @equipment_id");
+      if (bed_id) whereArgs.push("T.BED_ID = @bed_id");
+
+      if (terminalIds) {
+        const terminalIdsStr = Array.isArray(terminalIds) ? terminalIds.join(',') : String(terminalIds);
+        request.input("terminal_ids", sql.VarChar, terminalIdsStr);
+        whereArgs.push("(@terminal_ids IS NULL OR T.TERMINAL_ID IN (SELECT CAST(value AS NUMERIC) FROM STRING_SPLIT(@terminal_ids, ',')))");
+      }
+
+      const where = whereArgs.join(" AND ");
+
+      const result = await request.query(`
+        SELECT T.*
+        FROM TIRE_ATTACHMENT_HISTORY T
+        LEFT JOIN FLEET_EQUIPMENT_MASTER E ON T.EQUIPMENT_ID = E.EQUIPMENT_ID
+        LEFT JOIN BED_MASTER B ON T.BED_ID = B.BED_ID
+        LEFT JOIN TIRE_MASTER TM ON T.TIRE_ID = TM.TIRE_ID
+        ${where ? `WHERE ${where}` : ""}
+        ORDER BY T.ATTACH_DATE DESC
+      `);
+      return result.recordset;
+    } catch (error) {
+      console.error("Get tire attachment history error:", error);
+      throw error;
+    }
+  }
+
+  static async getNextId() {
+    try {
+      const result = await pool.request().query(`
+        SELECT ISNULL(MAX(TIRE_ATTACH_ID), 0) + 1 AS next_id
+        FROM TIRE_ATTACHMENT_HISTORY
+      `);
+      return result.recordset[0].next_id;
+    } catch (error) {
+      console.error("Get next tire attach ID error:", error);
+      throw error;
+    }
+  }
+
+  static async attach(data) {
+    try {
+      const targetPositionCheckRequest = pool
+        .request()
+        .input("position_id", sql.Numeric(18, 0), data.position_id)
+        .input("attach_for", sql.VarChar(20), data.attach_for);
+
+      let targetCondition = "";
+      if (String(data.attach_for).toUpperCase() === "VEHICLE") {
+        targetPositionCheckRequest.input(
+          "equipment_id",
+          sql.Numeric(18, 0),
+          data.equipment_id
+        );
+        targetCondition = "EQUIPMENT_ID = @equipment_id";
+      } else {
+        targetPositionCheckRequest.input("bed_id", sql.Numeric(18, 0), data.bed_id);
+        targetCondition = "BED_ID = @bed_id";
+      }
+
+      const targetPositionCheck = await targetPositionCheckRequest.query(`
+        SELECT TOP 1 TIRE_ATTACH_ID
+        FROM TIRE_ATTACHMENT_HISTORY
+        WHERE ATTACH_FOR = @attach_for
+          AND ${targetCondition}
+          AND POSITION_ID = @position_id
+          AND ISNULL(ATTACH_STATUS, 'ATTACHED') <> 'DETACHED'
+      `);
+
+      if (targetPositionCheck.recordset.length > 0) {
+        throw new Error(
+          "Selected position is already occupied for this target. Detach first."
+        );
+      }
+
+      const activeCheck = await pool
+        .request()
+        .input("tire_id", sql.Numeric(18, 0), data.tire_id)
+        .query(`
+          SELECT TOP 1 TIRE_ATTACH_ID
+          FROM TIRE_ATTACHMENT_HISTORY
+          WHERE TIRE_ID = @tire_id
+            AND ISNULL(ATTACH_STATUS, 'ATTACHED') <> 'DETACHED'
+        `);
+
+      if (activeCheck.recordset.length > 0) {
+        throw new Error("This tire is already attached. Detach it first.");
+      }
+
+      const nextId = await this.getNextId();
+      await pool
+        .request()
+        .input("tire_attach_id", sql.Numeric(18, 0), nextId)
+        .input("attach_for", sql.VarChar(20), data.attach_for)
+        .input("terminal_id", sql.Numeric(18, 0), data.terminal_id || null)
+        .input("location_id", sql.Numeric(18, 0), data.terminal_id || null)
+        .input("equipment_id", sql.Numeric(18, 0), data.equipment_id || null)
+        .input("bed_id", sql.Numeric(18, 0), data.bed_id || null)
+        .input("tire_id", sql.Numeric(18, 0), data.tire_id)
+        .input("position_id", sql.Numeric(18, 0), data.position_id)
+        .input("attach_date", sql.DateTime, new Date())
+        .input("km_run", sql.Numeric(18, 2), data.km_run || null)
+        .input("attach_status", sql.VarChar(20), "ATTACHED")
+        .input("remarks", sql.VarChar(500), data.remarks || null)
+        .input("created_by", sql.VarChar(30), data.created_by || null)
+        .input("created_on", sql.DateTime, new Date())
+        .query(`
+          INSERT INTO TIRE_ATTACHMENT_HISTORY (
+            TIRE_ATTACH_ID,
+          ATTACH_FOR,
+          TERMINAL_ID,
+          location_id,
+          EQUIPMENT_ID,
+          BED_ID,
+          TIRE_ID,
+            POSITION_ID,
+            ATTACH_DATE,
+            KM_RUN,
+            ATTACH_STATUS,
+            REMARKS,
+            CREATED_BY,
+            CREATED_ON
+          )
+          VALUES (
+            @tire_attach_id,
+            @attach_for,
+            @terminal_id,
+            @location_id,
+            @equipment_id,
+            @bed_id,
+            @tire_id,
+            @position_id,
+            @attach_date,
+            @km_run,
+            @attach_status,
+            @remarks,
+            @created_by,
+            @created_on
+          )
+        `);
+      return { success: true, tire_attach_id: nextId };
+    } catch (error) {
+      console.error("Attach tire error:", error);
+      throw error;
+    }
+  }
+
+  static async detach(tireAttachId, data) {
+    try {
+      await pool
+        .request()
+        .input("tire_attach_id", sql.Numeric(18, 0), tireAttachId)
+        .input("detach_date", sql.DateTime, new Date())
+        .input("attach_status", sql.VarChar(20), "DETACHED")
+        .input("remarks", sql.VarChar(500), data.remarks || null)
+        .input("updated_by", sql.VarChar(30), data.updated_by || null)
+        .input("updated_on", sql.DateTime, new Date())
+        .query(`
+          UPDATE TIRE_ATTACHMENT_HISTORY
+          SET
+            DETACH_DATE = @detach_date,
+            ATTACH_STATUS = @attach_status,
+            REMARKS = COALESCE(@remarks, REMARKS),
+            UPDATED_BY = @updated_by,
+            UPDATED_ON = @updated_on
+          WHERE TIRE_ATTACH_ID = @tire_attach_id
+        `);
+      return { success: true };
+    } catch (error) {
+      console.error("Detach tire error:", error);
+      throw error;
+    }
+  }
+
+  static async detachBulk(attachmentIds, data = {}) {
+    const ids = Array.isArray(attachmentIds) ? attachmentIds : [];
+    const results = [];
+
+    for (const attachmentId of ids) {
+      try {
+        await this.detach(attachmentId, data);
+        results.push({ success: true, attachment_id: attachmentId });
+      } catch (error) {
+        results.push({
+          success: false,
+          attachment_id: attachmentId,
+          error: error.message || "Failed to detach tire",
+        });
+      }
+    }
+
+    const successCount = results.filter((x) => x.success).length;
+    return {
+      success: true,
+      total: ids.length,
+      successCount,
+      failureCount: ids.length - successCount,
+      results,
+    };
+  }
+}
+
+module.exports = TireAttachmentModel;
