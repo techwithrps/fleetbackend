@@ -4,17 +4,12 @@ require("dotenv").config({ path: path.join(__dirname, "../../.env"), override: t
 
 const clean = (value) => (typeof value === "string" ? value.trim() : value);
 
-// Prefer SERVER1 (Azure SQL) if SERVER is not set or looks like a local IP
+// Use SERVER first (local/dedicated), fallback to DB_HOST, then Azure SQL
 const serverEnv  = clean(process.env.SERVER)  || "";
 const server1Env = clean(process.env.SERVER1) || "";
 const dbHostEnv  = clean(process.env.DB_HOST)  || "";
 
-// In production prefer Azure SQL (SERVER1); locally prefer SERVER
-const server =
-  (process.env.NODE_ENV === "production" && server1Env) ||
-  serverEnv ||
-  dbHostEnv ||
-  server1Env;
+const server = serverEnv || dbHostEnv || server1Env;
 
 const port = Number(clean(process.env.DB_PORT)) || 1433;
 
