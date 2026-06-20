@@ -37,6 +37,12 @@ class TransportRequest {
         additional_charges,
       } = requestData;
 
+      const terminalIdVal = requestData.terminalId && String(requestData.terminalId).toUpperCase() !== "ALL"
+        ? Number(requestData.terminalId)
+        : null;
+      const parsedCargoWeight = cargo_weight && !isNaN(parseFloat(cargo_weight)) ? parseFloat(cargo_weight) : null;
+      const parsedRequestedPrice = requested_price && !isNaN(parseFloat(requested_price)) ? parseFloat(requested_price) : null;
+
       const result = await pool
         .request()
         .input("customerId", sql.Int, customerId)
@@ -49,7 +55,7 @@ class TransportRequest {
         .input("delivery_location", sql.NVarChar, delivery_location)
         .input("commodity", sql.NVarChar, commodity)
         .input("cargo_type", sql.NVarChar, cargo_type)
-        .input("cargo_weight", sql.Decimal(10, 2), cargo_weight)
+        .input("cargo_weight", sql.Decimal(10, 2), parsedCargoWeight)
         .input(
           "service_type",
           sql.NVarChar(sql.MAX),
@@ -67,12 +73,12 @@ class TransportRequest {
         .input("expected_pickup_time", sql.Time, expected_pickup_time)
         .input("expected_delivery_date", sql.Date, expected_delivery_date)
         .input("expected_delivery_time", sql.Time, expected_delivery_time)
-        .input("requested_price", sql.Decimal(10, 2), requested_price)
+        .input("requested_price", sql.Decimal(10, 2), parsedRequestedPrice)
         .input("no_of_vehicles", sql.Int, no_of_vehicles || 1)
         .input("status", sql.NVarChar, status)
         .input("vehicle_status", sql.NVarChar, vehicle_status || "Empty")
         .input("SHIPA_NO", sql.NVarChar, SHIPA_NO)
-        .input("location_id", sql.Numeric(18, 0), requestData.terminalId) // Added terminalId
+        .input("location_id", sql.Numeric(18, 0), terminalIdVal) // Added terminalId
         .input("total_distance", sql.Decimal(10, 2), total_distance ? parseFloat(total_distance) : null)
         .input("trip_reference_no", sql.NVarChar, trip_reference_no)
         .input("start_location", sql.NVarChar, start_location)
@@ -246,6 +252,9 @@ class TransportRequest {
         additional_charges,
       } = requestData;
 
+      const parsedCargoWeight = cargo_weight && !isNaN(parseFloat(cargo_weight)) ? parseFloat(cargo_weight) : null;
+      const parsedRequestedPrice = requested_price && !isNaN(parseFloat(requested_price)) ? parseFloat(requested_price) : null;
+
       const result = await pool
         .request()
         .input("id", sql.Int, id)
@@ -259,7 +268,7 @@ class TransportRequest {
         .input("delivery_location", sql.NVarChar, delivery_location)
         .input("commodity", sql.NVarChar, commodity)
         .input("cargo_type", sql.NVarChar, cargo_type)
-        .input("cargo_weight", sql.Decimal(10, 2), cargo_weight)
+        .input("cargo_weight", sql.Decimal(10, 2), parsedCargoWeight)
         .input(
           "service_type",
           sql.NVarChar(sql.MAX),
@@ -277,7 +286,7 @@ class TransportRequest {
         .input("expected_pickup_time", sql.Time, expected_pickup_time)
         .input("expected_delivery_date", sql.Date, expected_delivery_date)
         .input("expected_delivery_time", sql.Time, expected_delivery_time)
-        .input("requested_price", sql.Decimal(10, 2), requested_price)
+        .input("requested_price", sql.Decimal(10, 2), parsedRequestedPrice)
         .input("no_of_vehicles", sql.Int, no_of_vehicles || 1)
         .input("SHIPA_NO", sql.NVarChar, SHIPA_NO)
         .input("total_distance", sql.Decimal(10, 2), total_distance ? parseFloat(total_distance) : null)

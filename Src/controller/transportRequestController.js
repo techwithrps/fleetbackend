@@ -103,6 +103,12 @@ exports.createRequest = async (req, res) => {
       });
     }
 
+    const terminalIdVal = req.user?.terminalId && String(req.user.terminalId).toUpperCase() !== "ALL"
+      ? Number(req.user.terminalId)
+      : null;
+    const parsedCargoWeight = cargo_weight && !isNaN(parseFloat(cargo_weight)) ? parseFloat(cargo_weight) : null;
+    const parsedRequestedPrice = requested_price && !isNaN(parseFloat(requested_price)) ? parseFloat(requested_price) : null;
+
     const result = await pool
       .request()
       .input("customer_id", sql.Int, req.user.id)
@@ -118,7 +124,7 @@ exports.createRequest = async (req, res) => {
       .input("delivery_location", sql.NVarChar, delivery_location)
       .input("commodity", sql.NVarChar, commodity)
       .input("cargo_type", sql.NVarChar, cargo_type)
-      .input("cargo_weight", sql.Decimal(10, 2), cargo_weight)
+      .input("cargo_weight", sql.Decimal(10, 2), parsedCargoWeight)
       .input(
         "service_type",
         sql.NVarChar(sql.MAX),
@@ -131,12 +137,12 @@ exports.createRequest = async (req, res) => {
       )
       .input("expected_pickup_date", sql.Date, pickupDate)
       .input("expected_delivery_date", sql.Date, deliveryDate)
-      .input("requested_price", sql.Decimal(10, 2), requested_price)
+      .input("requested_price", sql.Decimal(10, 2), parsedRequestedPrice)
       .input("no_of_vehicles", sql.Int, no_of_vehicles || 1)
       .input("status", sql.NVarChar, status || "Pending")
       .input("vehicle_status", sql.NVarChar, vehicle_status || "Empty")
       .input("SHIPA_NO", sql.NVarChar, finalShipaNo)
-      .input("location_id", sql.Numeric(18, 0), req.user.terminalId) // Terminal context
+      .input("location_id", sql.Numeric(18, 0), terminalIdVal) // Terminal context
       .input("total_distance", sql.Decimal(10, 2), total_distance ? parseFloat(total_distance) : null)
       // Bind new trip fields
       .input("trip_reference_no", sql.NVarChar, trip_reference_no)
@@ -319,6 +325,9 @@ exports.updateRequest = async (req, res) => {
       ? SHIPA_NO.trim()
       : (trip_reference_no ? trip_reference_no.trim() : `SHIPA-${Date.now()}`);
 
+    const parsedCargoWeight = cargo_weight && !isNaN(parseFloat(cargo_weight)) ? parseFloat(cargo_weight) : null;
+    const parsedRequestedPrice = requested_price && !isNaN(parseFloat(requested_price)) ? parseFloat(requested_price) : null;
+
     const result = await pool
       .request()
       .input("id", sql.Int, requestId)
@@ -331,7 +340,7 @@ exports.updateRequest = async (req, res) => {
       .input("delivery_location", sql.NVarChar, delivery_location)
       .input("commodity", sql.NVarChar, commodity)
       .input("cargo_type", sql.NVarChar, cargo_type)
-      .input("cargo_weight", sql.Decimal(10, 2), cargo_weight)
+      .input("cargo_weight", sql.Decimal(10, 2), parsedCargoWeight)
       .input(
         "service_type",
         sql.NVarChar(sql.MAX),
@@ -347,7 +356,7 @@ exports.updateRequest = async (req, res) => {
       .input("total_containers", sql.Int, total_containers || 0)
       .input("expected_pickup_date", sql.Date, pickupDate)
       .input("expected_delivery_date", sql.Date, deliveryDate)
-      .input("requested_price", sql.Decimal(10, 2), requested_price)
+      .input("requested_price", sql.Decimal(10, 2), parsedRequestedPrice)
       .input("no_of_vehicles", sql.Int, no_of_vehicles || 1)
       .input("status", sql.NVarChar, status)
       .input("vehicle_status", sql.NVarChar, vehicle_status)
